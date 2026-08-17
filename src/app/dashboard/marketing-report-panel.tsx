@@ -437,7 +437,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     loadReports(period, value);
   };
 
-  // Metric summaries
   const postMetrics = useMemo(() => {
     let tiktok = 0;
     let facebook = 0;
@@ -445,18 +444,36 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     let website = 0;
     let views = 0;
     let likes = 0;
+    let tiktokViews = 0;
+    let tiktokOver5k = 0;
+    let tiktokOver10k = 0;
 
     displayedPosts.forEach((p) => {
       if (!p.title.trim()) return;
-      if (p.platform.includes("Tiktok")) tiktok++;
-      if (p.platform.includes("Facebook")) facebook++;
-      if (p.platform.includes("Youtube")) youtube++;
-      if (p.platform.includes("Website")) website++;
 
-      const v = parseInt(p.views.replace(/[^0-9]/g, "")) || 0;
+      const rawViews = String(p.views || "").toLowerCase();
+      const v = rawViews.includes(">10k") || rawViews.includes("> 10k")
+        ? 10000
+        : (rawViews.includes(">5k") || rawViews.includes("> 5k")
+          ? 5000
+          : (rawViews.includes(">2k") || rawViews.includes("> 2k")
+            ? 2000
+            : (rawViews.includes(">1k") || rawViews.includes("> 1k")
+              ? 1000
+              : (parseInt(rawViews.replace(/[^0-9]/g, "")) || 0))));
       const l = parseInt(p.likes.replace(/[^0-9]/g, "")) || 0;
       views += v;
       likes += l;
+
+      if (p.platform.includes("Tiktok")) {
+        tiktok++;
+        tiktokViews += v;
+        if (v >= 10000) tiktokOver10k++;
+        if (v >= 5000) tiktokOver5k++;
+      }
+      if (p.platform.includes("Facebook")) facebook++;
+      if (p.platform.includes("Youtube")) youtube++;
+      if (p.platform.includes("Website")) website++;
     });
 
     return {
@@ -467,6 +484,9 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       website,
       views,
       likes,
+      tiktokViews,
+      tiktokOver5k,
+      tiktokOver10k,
     };
   }, [displayedPosts]);
 
@@ -831,7 +851,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   };
 
   const handleDeleteSelected = () => {
-    if (activeSubTab === "posts" && selectedPosts.size > 0) {
+    if (selectedPosts.size > 0) {
       const deletedDates = posts
         .filter((r) => selectedPosts.has(r.rowId))
         .map((r) => r.report_date);
@@ -849,26 +869,15 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       startSave(async () => {
         await persistReports(nextPosts, events, deletedDates);
       });
-    } else if (activeSubTab === "events" && selectedEvents.size > 0) {
-      const deletedDates = events
-        .filter((r) => selectedEvents.has(r.rowId))
-        .map((r) => r.event_date);
-      const nextEvents = events.filter((r) => !selectedEvents.has(r.rowId));
-
-      if ([...selectedEvents].some((id) => id === editingEventRowId)) {
-        setEditingEventRowId(null);
-        setMobileEventForm(emptyMobileEventForm());
-      }
-
-      setEvents(nextEvents);
-      setSelectedEvents(new Set());
-      setErrorMsg("");
-
-      startSave(async () => {
-        await persistReports(posts, nextEvents, deletedDates);
-      });
     }
   };
+
+  const conditionsMet = [
+    postMetrics.tiktokViews >= 60000,
+    postMetrics.tiktokOver5k >= 5,
+    postMetrics.tiktokOver10k >= 1,
+  ].filter(Boolean).length;
+  const isKpiViewsPassed = conditionsMet >= 2;
 
   return (
     <div
@@ -1055,39 +1064,52 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
               </div>
             </div>
 
-            {/* Column 2: Sự kiện & Bàn giao */}
+            {/* Column 2: Hiệu quả view TikTok */}
             <div className="flex flex-col gap-1.5 justify-center border-t md:border-t-0 md:border-l border-slate-200/60 pt-2.5 md:pt-0 md:pl-4">
               <div className="flex justify-between items-center border-b border-slate-200/60 pb-1">
                 <span className="text-[10px] font-extrabold text-primary uppercase tracking-wider">
-                  Sự kiện
+                  Hiệu quả view TikTok
                 </span>
-                <span className="text-xs font-bold text-primary">
-                  {eventMetrics.total} sự kiện
+                <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
+                  isKpiViewsPassed 
+                    ? "bg-emerald-100 text-emerald-800" 
+                    : "bg-slate-100 text-slate-600"
+                }`}>
+                  {isKpiViewsPassed ? "Đạt KPI" : `Đạt ${conditionsMet}/3`}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-1 text-center">
                 <div>
-                  <p className="text-xs font-extrabold text-primary">
-                    {eventMetrics.total}
+                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
+                    {postMetrics.tiktokViews >= 1000 ? `${(postMetrics.tiktokViews / 1000).toFixed(1)}k` : postMetrics.tiktokViews}
+                    <span className="text-[8px] font-semibold text-slate-400">
+                      /60k
+                    </span>
                   </p>
                   <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide">
-                    Sự kiện
+                    Tổng View
                   </p>
                 </div>
                 <div className="border-l border-r border-slate-200/50">
-                  <p className="text-xs font-extrabold text-primary">
-                    {eventMetrics.attendees}
+                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
+                    {postMetrics.tiktokOver5k}
+                    <span className="text-[8px] font-semibold text-slate-400">
+                      /5
+                    </span>
                   </p>
                   <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide font-sans">
-                    Tham gia
+                    Video &gt; 5k
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-extrabold text-primary truncate px-0.5">
-                    {eventMetrics.budget || 0}
+                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
+                    {postMetrics.tiktokOver10k}
+                    <span className="text-[8px] font-semibold text-slate-400">
+                      /1
+                    </span>
                   </p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide">
-                    Chi phí
+                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide font-sans">
+                    Video &gt; 10k
                   </p>
                 </div>
               </div>
@@ -1097,36 +1119,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
           {/* Middle Row: Filters & Platform Selectors (flex container, full width) */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/50 pt-3">
             <div className="flex flex-wrap items-center gap-2">
-              {/* Sub-tab selection */}
-              <div
-                className="flex items-center gap-0.5 bg-slate-200/60 p-0.5 rounded-[6px] border border-slate-300/40 shrink-0 h-8"
-                role="group"
-                aria-label="Chọn loại dữ liệu"
-              >
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab("posts")}
-                  className={`px-3 h-full rounded-[4px] text-xs font-bold cursor-pointer transition-colors ${
-                    activeSubTab === "posts"
-                      ? "bg-primary text-white shadow-xs"
-                      : "text-slate-600 hover:text-slate-800"
-                  }`}
-                >
-                  Đăng bài
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab("events")}
-                  className={`px-3 h-full rounded-[4px] text-xs font-bold cursor-pointer transition-colors ${
-                    activeSubTab === "events"
-                      ? "bg-primary text-white shadow-xs"
-                      : "text-slate-600 hover:text-slate-800"
-                  }`}
-                >
-                  Sự kiện
-                </button>
-              </div>
-
               <AdminSelect
                 compact
                 value={filterMonth}
@@ -1137,76 +1129,72 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                 className="w-40 shrink-0"
               />
               <span className="flex items-center justify-center h-8 px-2.5 rounded-[4px] text-[10px] font-extrabold bg-primary/10 text-primary border border-primary/15 whitespace-nowrap">
-                {activeSubTab === "posts"
-                  ? `${displayedPosts.length} / ${posts.length} bài`
-                  : `${displayedEvents.length} / ${events.length} sự kiện`}
+                {`${displayedPosts.length} / ${posts.length} bài`}
               </span>
             </div>
 
-            {/* Platform Selector Buttons (for Posts only) */}
-            {activeSubTab === "posts" && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setFilterPlatform("all")}
-                  className={`px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                    filterPlatform === "all"
-                      ? "bg-primary border-primary text-white scale-[1.02] shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                  }`}
-                >
-                  Tất cả
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterPlatform("Tiktok")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                    filterPlatform === "Tiktok"
-                      ? "bg-[#fe2c55]/10 border-[#fe2c55]/30 text-[#fe2c55] scale-[1.02] shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                  }`}
-                >
-                  {TikTokIcon}
-                  <span className="font-sans">TikTok</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterPlatform("Facebook")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                    filterPlatform === "Facebook"
-                      ? "bg-[#1877f2]/10 border-[#1877f2]/30 text-[#1877f2] scale-[1.02] shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                  }`}
-                >
-                  {FacebookIcon}
-                  <span className="font-sans">Facebook</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterPlatform("Youtube")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                    filterPlatform === "Youtube"
-                      ? "bg-[#ff0000]/10 border-[#ff0000]/30 text-[#ff0000] scale-[1.02] shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                  }`}
-                >
-                  {YouTubeIcon}
-                  <span className="font-sans">YouTube</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterPlatform("Website")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                    filterPlatform === "Website"
-                      ? "bg-slate-700/10 border-slate-700/30 text-slate-800 scale-[1.02] shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                  }`}
-                >
-                  {WebsiteIcon}
-                  <span className="font-sans">Website</span>
-                </button>
-              </div>
-            )}
+            {/* Platform Selector Buttons */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setFilterPlatform("all")}
+                className={`px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
+                  filterPlatform === "all"
+                    ? "bg-primary border-primary text-white scale-[1.02] shadow-sm"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                }`}
+              >
+                Tất cả
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterPlatform("Tiktok")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
+                  filterPlatform === "Tiktok"
+                    ? "bg-[#fe2c55]/10 border-[#fe2c55]/30 text-[#fe2c55] scale-[1.02] shadow-sm"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                }`}
+              >
+                {TikTokIcon}
+                <span className="font-sans">TikTok</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterPlatform("Facebook")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
+                  filterPlatform === "Facebook"
+                    ? "bg-[#1877f2]/10 border-[#1877f2]/30 text-[#1877f2] scale-[1.02] shadow-sm"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                }`}
+              >
+                {FacebookIcon}
+                <span className="font-sans">Facebook</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterPlatform("Youtube")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
+                  filterPlatform === "Youtube"
+                    ? "bg-[#ff0000]/10 border-[#ff0000]/30 text-[#ff0000] scale-[1.02] shadow-sm"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                }`}
+              >
+                {YouTubeIcon}
+                <span className="font-sans">YouTube</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterPlatform("Website")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
+                  filterPlatform === "Website"
+                    ? "bg-slate-700/10 border-slate-700/30 text-slate-800 scale-[1.02] shadow-sm"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                }`}
+              >
+                {WebsiteIcon}
+                <span className="font-sans">Website</span>
+              </button>
+            </div>
           </div>
 
           {/* Bottom Row: Horizontal Day Scroller (Spans Full Width, Only when month is active) */}
@@ -1215,27 +1203,15 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
               <div className="flex items-center gap-1 overflow-x-auto py-0.5 no-scrollbar scroll-smooth">
                 {daysInMonth.map((day) => {
                   const dateStr = `${filterMonth}-${day.dayStr}`;
-                  const hasReport =
-                    activeSubTab === "posts"
-                      ? posts.some(
-                          (p) => p.report_date === dateStr && p.title.trim(),
-                        )
-                      : events.some(
-                          (e) =>
-                            e.event_date === dateStr && e.event_name.trim(),
-                        );
+                  const hasReport = posts.some(
+                    (p) => p.report_date === dateStr && p.title.trim(),
+                  );
 
                   return (
                     <button
                       key={day.dayStr}
                       type="button"
-                      onClick={() => {
-                        if (activeSubTab === "posts") {
-                          handleAddPostRow(dateStr);
-                        } else {
-                          handleAddEventRow(dateStr);
-                        }
-                      }}
+                      onClick={() => handleAddPostRow(dateStr)}
                       className={`relative shrink-0 flex flex-col items-center justify-center w-8 h-8 rounded-md border text-center transition-all cursor-pointer ${
                         day.isWeekend
                           ? "bg-amber-50/70 border-amber-200/80 text-amber-800 hover:bg-amber-100/80 hover:scale-105 shadow-sm"
@@ -1263,12 +1239,9 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       </div>
 
       {/* Toolbar / Actions & Filters */}
-      {((activeSubTab === "posts" && selectedPosts.size > 0) ||
-        (activeSubTab === "events" && selectedEvents.size > 0) ||
-        errorMsg) && (
+      {(selectedPosts.size > 0 || errorMsg) && (
         <div className={`shrink-0 ${layoutPad} flex flex-col gap-2 pt-3`}>
-          {((activeSubTab === "posts" && selectedPosts.size > 0) ||
-            (activeSubTab === "events" && selectedEvents.size > 0)) && (
+          {selectedPosts.size > 0 && (
             <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
@@ -1276,11 +1249,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                 disabled={isSaving}
                 className={`${toolbarBtn} text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-60`}
               >
-                Xóa (
-                {activeSubTab === "posts"
-                  ? selectedPosts.size
-                  : selectedEvents.size}
-                )
+                Xóa ({selectedPosts.size})
               </button>
             </div>
           )}
@@ -1295,8 +1264,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
 
       {/* Mobile Forms */}
       <div className="sm:hidden rounded-xl border border-slate-200/70 bg-gradient-to-b from-slate-50/90 to-white p-2.5 space-y-2 shadow-sm">
-        {activeSubTab === "posts" ? (
-          <>
             <p className="text-[9px] font-bold text-primary uppercase tracking-wider">
               {editingPostRowId ? "Chỉnh sửa bài đăng" : "Thêm bài đăng mới"}
             </p>
@@ -1408,14 +1375,64 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                 <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
                   Lượt xem
                 </span>
-                <input
-                  type="text"
-                  placeholder=""
+                <AdminSelect
+                  compact
+                  portal
                   value={mobilePostForm.views}
-                  onChange={(e) =>
-                    setMobilePostForm((p) => ({ ...p, views: e.target.value }))
+                  onChange={(val) =>
+                    setMobilePostForm((p) => ({ ...p, views: val }))
                   }
-                  className={mobileFormInput}
+                  options={[
+                    {
+                      value: ">1k",
+                      label: (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-500 text-slate-700">
+                          &gt;1k
+                        </span>
+                      ),
+                    },
+                    {
+                      value: ">2k",
+                      label: (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-600 text-emerald-700">
+                          &gt;2k
+                        </span>
+                      ),
+                    },
+                    {
+                      value: ">5k view",
+                      label: (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-500 text-amber-700">
+                          &gt;5k view
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "> 10k view",
+                      label: (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-purple-600 text-purple-700">
+                          &gt; 10k view
+                        </span>
+                      ),
+                    },
+                    ...(mobilePostForm.views &&
+                    mobilePostForm.views !== ">1k" &&
+                    mobilePostForm.views !== ">2k" &&
+                    mobilePostForm.views !== ">5k view" &&
+                    mobilePostForm.views !== "> 10k view"
+                      ? [
+                          {
+                            value: mobilePostForm.views,
+                            label: (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-500 text-slate-700">
+                                {mobilePostForm.views}
+                              </span>
+                            ),
+                          },
+                        ]
+                      : []),
+                  ]}
+                  placeholder=""
                 />
               </label>
 
@@ -1474,198 +1491,10 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                 </button>
               )}
             </div>
-          </>
-        ) : (
-          <>
-            <p className="text-[9px] font-bold text-primary uppercase tracking-wider">
-              {editingEventRowId
-                ? "Chỉnh sửa bàn giao / sự kiện"
-                : "Thêm bàn giao / sự kiện mới"}
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <label className="space-y-0.5 col-span-2">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Sự kiện / Khách hàng *
-                </span>
-                <input
-                  type="text"
-                  placeholder="Nhập tên sự kiện / khách hàng bàn giao"
-                  value={mobileEventForm.event_name}
-                  onChange={(e) =>
-                    setMobileEventForm((p) => ({
-                      ...p,
-                      event_name: e.target.value,
-                    }))
-                  }
-                  className={mobileFormInput}
-                />
-              </label>
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Ngày thực hiện
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setActiveDatePicker({
-                      type: "event-mobile",
-                      rowId: "",
-                      value: mobileEventForm.event_date,
-                    })
-                  }
-                  className="flex items-center justify-between px-2 h-7 text-[10px] text-slate-800 bg-white border border-slate-200/80 rounded hover:bg-slate-50 focus:outline-none focus:ring-1 focus:ring-primary/30 w-full"
-                >
-                  <span className="font-sans font-medium">
-                    {formatDateDisplay(mobileEventForm.event_date)}
-                  </span>
-                  <svg
-                    className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                </button>
-              </label>
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Loại mooc
-                </span>
-                <AdminSelect
-                  micro
-                  portal
-                  value={mobileEventForm.trailer_type || ""}
-                  onChange={(v) =>
-                    setMobileEventForm((p) => ({
-                      ...p,
-                      trailer_type: v,
-                    }))
-                  }
-                  options={TRAILER_TYPE_OPTIONS}
-                  placeholder="—"
-                />
-              </label>
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Số lượng mooc
-                </span>
-                <input
-                  type="text"
-                  placeholder="Số lượng"
-                  value={mobileEventForm.qty || ""}
-                  onChange={(e) =>
-                    setMobileEventForm((p) => ({
-                      ...p,
-                      qty: e.target.value,
-                    }))
-                  }
-                  className={mobileFormInput}
-                />
-              </label>
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Địa điểm bàn giao
-                </span>
-                <input
-                  type="text"
-                  placeholder="Hải Phòng..."
-                  value={mobileEventForm.location || ""}
-                  onChange={(e) =>
-                    setMobileEventForm((p) => ({
-                      ...p,
-                      location: e.target.value,
-                    }))
-                  }
-                  className={mobileFormInput}
-                />
-              </label>
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Chi phí (VNĐ)
-                </span>
-                <input
-                  type="text"
-                  placeholder="Chi phí"
-                  value={mobileEventForm.budget}
-                  onChange={(e) =>
-                    setMobileEventForm((p) => ({
-                      ...p,
-                      budget: e.target.value,
-                    }))
-                  }
-                  className={mobileFormInput}
-                />
-              </label>
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Khách mời
-                </span>
-                <input
-                  type="text"
-                  placeholder="Số người tham gia"
-                  value={mobileEventForm.attendees}
-                  onChange={(e) =>
-                    setMobileEventForm((p) => ({
-                      ...p,
-                      attendees: e.target.value,
-                    }))
-                  }
-                  className={mobileFormInput}
-                />
-              </label>
-              <label className="space-y-0.5 col-span-2">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Kết quả / Đánh giá
-                </span>
-                <input
-                  type="text"
-                  placeholder="Đạt KPI/tốt..."
-                  value={mobileEventForm.outcome}
-                  onChange={(e) =>
-                    setMobileEventForm((p) => ({
-                      ...p,
-                      outcome: e.target.value,
-                    }))
-                  }
-                  className={mobileFormInput}
-                />
-              </label>
-            </div>
-            <div className="flex gap-1.5 pt-0.5">
-              <button
-                type="button"
-                onClick={handleMobileEventSubmit}
-                className="flex-1 h-7 rounded-md text-[10px] font-bold text-white bg-primary hover:bg-primary-hover cursor-pointer touch-manipulation transition-colors shadow-sm"
-              >
-                {editingEventRowId ? "Cập nhật" : "Thêm sự kiện"}
-              </button>
-              {editingEventRowId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingEventRowId(null);
-                    setMobileEventForm(emptyMobileEventForm());
-                  }}
-                  className="h-7 px-2.5 rounded-md text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer touch-manipulation transition-colors"
-                >
-                  Hủy
-                </button>
-              )}
-            </div>
-          </>
-        )}
       </div>
 
       {/* Main Table view */}
       <div className={`flex-1 min-h-0 overflow-auto ${layoutPad} pt-3`}>
-        {activeSubTab === "posts" ? (
-          <>
             {/* Posts Table (Mobile version) */}
             <div className="sm:hidden rounded-lg border border-slate-100 bg-white min-w-0">
               <table className="w-full text-left text-[9px] leading-tight">
@@ -1786,7 +1615,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                       <th className="px-2 py-2 font-bold text-center border border-white/15 min-w-[11rem]">
                         Đường dẫn (Link)
                       </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-20">
+                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-[115px]">
                         Lượt xem
                       </th>
                       <th className="px-2 py-2 font-bold text-center border border-white/15 w-24">
@@ -1940,19 +1769,69 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             />
                           </td>
                           <td className="p-1 border border-slate-200/80">
-                            <input
-                              type="text"
-                              placeholder=""
+                            <AdminSelect
+                              compact
+                              portal
                               value={row.views}
-                              onChange={(e) =>
+                              onChange={(val) =>
                                 updatePostRow(
                                   row.rowId,
                                   "views",
-                                  e.target.value,
+                                  val,
+                                  true,
                                 )
                               }
-                              onBlur={handleMarketingBlur}
-                              className={cellInput}
+                              options={[
+                                {
+                                  value: ">1k",
+                                  label: (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-500 text-slate-700">
+                                      &gt;1k
+                                    </span>
+                                  ),
+                                },
+                                {
+                                  value: ">2k",
+                                  label: (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-600 text-emerald-700">
+                                      &gt;2k
+                                    </span>
+                                  ),
+                                },
+                                {
+                                  value: ">5k view",
+                                  label: (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-500 text-amber-700">
+                                      &gt;5k view
+                                    </span>
+                                  ),
+                                },
+                                {
+                                  value: "> 10k view",
+                                  label: (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-purple-600 text-purple-700">
+                                      &gt; 10k view
+                                    </span>
+                                  ),
+                                },
+                                ...(row.views &&
+                                row.views !== ">1k" &&
+                                row.views !== ">2k" &&
+                                row.views !== ">5k view" &&
+                                row.views !== "> 10k view"
+                                  ? [
+                                      {
+                                        value: row.views,
+                                        label: (
+                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-500 text-slate-700">
+                                            {row.views}
+                                          </span>
+                                        ),
+                                      },
+                                    ]
+                                  : []),
+                              ]}
+                              placeholder=""
                             />
                           </td>
 
@@ -1993,331 +1872,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                 </table>
               </div>
             </div>
-          </>
-        ) : (
-          <>
-            {/* Events Table (Mobile version) */}
-            <div className="sm:hidden rounded-lg border border-slate-100 bg-white min-w-0">
-              <table className="w-full text-left text-[9px] leading-tight">
-                <thead>
-                  <tr className="bg-primary text-white">
-                    <th className="w-7 px-1 py-1.5 border border-white/15">
-                      <input
-                        type="checkbox"
-                        checked={
-                          events.length > 0 &&
-                          selectedEvents.size === events.length
-                        }
-                        onChange={toggleSelectAllEvents}
-                        className="w-3.5 h-3.5 accent-white cursor-pointer"
-                        aria-label="Chọn tất cả"
-                      />
-                    </th>
-                    <th className="px-1 py-1.5 font-bold border border-white/15">
-                      Sự kiện
-                    </th>
-                    <th className="px-1 py-1.5 font-bold border border-white/15">
-                      Kết quả
-                    </th>
-                    <th className="px-1 py-1.5 font-bold border border-white/15 w-11">
-                      Ngày
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {events.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-2 py-6 text-center text-slate-400 italic border border-slate-200/80"
-                      >
-                        Chưa có dòng sự kiện — điền form phía trên
-                      </td>
-                    </tr>
-                  ) : (
-                    events.map((row, i) => (
-                      <tr
-                        key={row.rowId}
-                        onClick={() => {
-                          setMobileEventForm({
-                            event_name: row.event_name,
-                            event_date: row.event_date,
-                            trailer_type: row.trailer_type || "",
-                            qty: row.qty || "",
-                            location: row.location || "",
-                            budget: row.budget,
-                            attendees: row.attendees,
-                            outcome: row.outcome,
-                            status: row.status,
-                          });
-                          setEditingEventRowId(row.rowId);
-                          setErrorMsg("");
-                        }}
-                        className={`cursor-pointer ${
-                          i % 2 === 1 ? "bg-slate-50/60" : "bg-white"
-                        } ${
-                          editingEventRowId === row.rowId
-                            ? "ring-1 ring-inset ring-primary/30"
-                            : ""
-                        } ${selectedEvents.has(row.rowId) ? "bg-primary/5" : ""}`}
-                      >
-                        <td
-                          className="px-1 py-1 border border-slate-200/80 text-center"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedEvents.has(row.rowId)}
-                            onChange={() => toggleSelectEvent(row.rowId)}
-                            className="w-3 h-3 accent-primary cursor-pointer"
-                            aria-label={`Chọn ${row.event_name || "sự kiện"}`}
-                          />
-                        </td>
-                        <td className="px-1 py-1 border border-slate-200/80 font-bold text-slate-900 truncate max-w-[6rem]">
-                          {row.event_name}
-                        </td>
-                        <td className="px-1 py-1 border border-slate-200/80 text-slate-600 truncate max-w-[5rem]">
-                          {row.outcome || "—"}
-                        </td>
-                        <td className="px-1 py-1 border border-slate-200/80 text-slate-500 whitespace-nowrap">
-                          {formatDateDisplay(row.event_date).slice(0, 5)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Events Table (Desktop version) */}
-            <div className="hidden sm:block rounded-lg border border-slate-100 bg-white min-w-0 overflow-hidden">
-              <div className="overflow-x-auto overflow-y-visible">
-                <table className="w-full min-w-[850px] text-left text-xs">
-                  <thead>
-                    <tr className="bg-primary text-white">
-                      <th className="w-9 px-2 py-2 border border-white/15">
-                        <input
-                          type="checkbox"
-                          checked={
-                            events.length > 0 &&
-                            selectedEvents.size === events.length
-                          }
-                          onChange={toggleSelectAllEvents}
-                          className="w-3.5 h-3.5 accent-white cursor-pointer"
-                          aria-label="Chọn tất cả"
-                        />
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 min-w-[10rem]">
-                        Sự kiện / Khách hàng
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-28">
-                        Ngày thực hiện
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-24">
-                        Loại mooc
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-20">
-                        Số lượng
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 min-w-[8rem]">
-                        Địa điểm
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-24">
-                        Chi phí (VNĐ)
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-20">
-                        Khách mời
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 min-w-[8rem]">
-                        Kết quả đạt được
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayedEvents.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={9}
-                          className="px-3 py-10 text-center text-slate-400 italic border border-slate-200/80"
-                        >
-                          Chưa có dòng sự kiện — bấm &quot;Thêm dòng&quot; để
-                          bắt đầu
-                        </td>
-                      </tr>
-                    ) : (
-                      displayedEvents.map((row, i) => (
-                        <tr
-                          key={row.rowId}
-                          className={`${
-                            i % 2 === 1 ? "bg-slate-50/60" : "bg-white"
-                          } ${
-                            selectedEvents.has(row.rowId)
-                              ? "ring-1 ring-inset ring-primary/25 bg-primary/2"
-                              : ""
-                          }`}
-                        >
-                          <td className="px-2 py-1 border border-slate-200/80 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedEvents.has(row.rowId)}
-                              onChange={() => toggleSelectEvent(row.rowId)}
-                              className="w-3.5 h-3.5 accent-primary cursor-pointer"
-                              aria-label={`Chọn ${row.event_name || "dòng mới"}`}
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <input
-                              ref={(el) => {
-                                if (el)
-                                  eventNameRefs.current.set(row.rowId, el);
-                                else eventNameRefs.current.delete(row.rowId);
-                              }}
-                              type="text"
-                              placeholder="Tên sự kiện / Khách hàng *"
-                              value={row.event_name}
-                              onChange={(e) =>
-                                updateEventRow(
-                                  row.rowId,
-                                  "event_name",
-                                  e.target.value,
-                                )
-                              }
-                              onBlur={handleMarketingBlur}
-                              className={`${cellInput} font-semibold`}
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setActiveDatePicker({
-                                  type: "event",
-                                  rowId: row.rowId,
-                                  value: row.event_date,
-                                })
-                              }
-                              className="flex items-center justify-between px-2 py-1.5 text-xs text-slate-800 bg-white border border-slate-200/80 rounded hover:bg-slate-50/80 hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-primary/30 w-full min-h-[2rem]"
-                            >
-                              <span className="font-sans font-medium text-slate-700">
-                                {formatDateDisplay(row.event_date)}
-                              </span>
-                              <svg
-                                className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                />
-                              </svg>
-                            </button>
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <AdminSelect
-                              compact
-                              portal
-                              value={row.trailer_type || ""}
-                              onChange={(v) =>
-                                updateEventRow(
-                                  row.rowId,
-                                  "trailer_type",
-                                  v,
-                                  true,
-                                )
-                              }
-                              options={TRAILER_TYPE_OPTIONS}
-                              placeholder="—"
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <input
-                              type="text"
-                              placeholder="SL"
-                              value={row.qty || ""}
-                              onChange={(e) =>
-                                updateEventRow(row.rowId, "qty", e.target.value)
-                              }
-                              onBlur={handleMarketingBlur}
-                              className={cellInput}
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <input
-                              type="text"
-                              placeholder="Địa điểm bàn giao"
-                              value={row.location || ""}
-                              onChange={(e) =>
-                                updateEventRow(
-                                  row.rowId,
-                                  "location",
-                                  e.target.value,
-                                )
-                              }
-                              onBlur={handleMarketingBlur}
-                              className={cellInput}
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <input
-                              type="text"
-                              placeholder="Chi phí"
-                              value={row.budget}
-                              onChange={(e) =>
-                                updateEventRow(
-                                  row.rowId,
-                                  "budget",
-                                  e.target.value,
-                                )
-                              }
-                              onBlur={handleMarketingBlur}
-                              className={cellInput}
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <input
-                              type="text"
-                              placeholder="Khách"
-                              value={row.attendees}
-                              onChange={(e) =>
-                                updateEventRow(
-                                  row.rowId,
-                                  "attendees",
-                                  e.target.value,
-                                )
-                              }
-                              onBlur={handleMarketingBlur}
-                              className={cellInput}
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <input
-                              type="text"
-                              placeholder="Kết quả / Đánh giá KPI"
-                              value={row.outcome}
-                              onChange={(e) =>
-                                updateEventRow(
-                                  row.rowId,
-                                  "outcome",
-                                  e.target.value,
-                                )
-                              }
-                              onBlur={handleMarketingBlur}
-                              className={cellInput}
-                            />
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
       <MarketingExcelPreviewModal

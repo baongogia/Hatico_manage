@@ -8,7 +8,7 @@ export const adminControlClass =
 
 type AdminSelectOption = {
   value: string;
-  label: string;
+  label: React.ReactNode;
 };
 
 type MenuPosition = {
@@ -22,7 +22,7 @@ interface AdminSelectProps {
   options: AdminSelectOption[];
   onChange: (value: string) => void;
   className?: string;
-  placeholder?: string;
+  placeholder?: string | React.ReactNode;
   compact?: boolean;
   micro?: boolean;
   portal?: boolean;
@@ -123,7 +123,7 @@ export default function AdminSelect({
           <button
             type="button"
             onClick={() => {
-              onChange(opt.value);
+              onChange(value === opt.value ? "" : opt.value);
               setOpen(false);
             }}
             className={`w-full text-left px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-between gap-2 ${

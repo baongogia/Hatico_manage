@@ -61,7 +61,16 @@ export async function downloadMarketingReportExcel(filename: string, options: Ex
   let webCount = 0;
 
   posts.forEach(p => {
-    const views = parseInt(String(p.views).replace(/[^0-9]/g, "")) || 0;
+    const rawViews = String(p.views || "").toLowerCase();
+    const views = rawViews.includes(">10k") || rawViews.includes("> 10k")
+      ? 10000
+      : (rawViews.includes(">5k") || rawViews.includes("> 5k")
+        ? 5000
+        : (rawViews.includes(">2k") || rawViews.includes("> 2k")
+          ? 2000
+          : (rawViews.includes(">1k") || rawViews.includes("> 1k")
+            ? 1000
+            : (parseInt(rawViews.replace(/[^0-9]/g, "")) || 0))));
     const likes = parseInt(String(p.likes).replace(/[^0-9]/g, "")) || 0;
     const comments = parseInt(String(p.comments).replace(/[^0-9]/g, "")) || 0;
     const shares = parseInt(String(p.shares).replace(/[^0-9]/g, "")) || 0;
@@ -313,114 +322,6 @@ export async function downloadMarketingReportExcel(filename: string, options: Ex
       dataRow.getCell(1).alignment = { vertical: "top", horizontal: "center", wrapText: true };
     });
   }
-
-  // --- SHEET 3: BÀN GIAO MOOC & SỰ KIỆN ---
-  const eventSheet = workbook.addWorksheet("Bàn giao mooc & Sự kiện", {
-    views: [{ showGridLines: true }],
-  });
-
-  eventSheet.columns = [
-    { key: "event_name", width: 28 },
-    { key: "event_date", width: 14 },
-    { key: "trailer_type", width: 14 },
-    { key: "qty", width: 12 },
-    { key: "location", width: 20 },
-    { key: "budget", width: 16 },
-    { key: "attendees", width: 14 },
-    { key: "outcome", width: 24 },
-  ];
-
-  const addMergedLineEvent = (
-    text: string,
-    style: Partial<ExcelJS.Style>,
-    endCol: string = "G"
-  ) => {
-    const row = eventSheet.addRow([text, "", "", "", "", "", "", ""]);
-    const n = row.number;
-    eventSheet.mergeCells(`A${n}:${endCol}${n}`);
-    styleRow(row, style);
-    return n;
-  };
-
-  const eLine1 = addMergedLineEvent("CÔNG TY CỔ PHẦN XNK QUỐC TẾ HATICO", {
-    font: { bold: true, size: 11 },
-    alignment: { vertical: "middle" },
-  });
-  eventSheet.getRow(eLine1).height = 24;
-
-  const eLine2 = addMergedLineEvent("BÁO CÁO BÀN GIAO MOOC & SỰ KIỆN", {
-    font: { bold: true, size: 14, color: { argb: PRIMARY } },
-    alignment: { vertical: "middle" },
-  });
-  eventSheet.getRow(eLine2).height = 32;
-
-  const eLine3 = addMergedLineEvent(
-    `Nhân viên: ${staffName}${branchName ? ` · ${branchName}` : ""} · Khoảng: ${PERIOD_LABELS[period]} · Tổng: ${events.length} sự kiện`,
-    {
-      font: { size: 10, color: { argb: "FF334155" } },
-      alignment: { wrapText: true, vertical: "middle" },
-    }
-  );
-  eventSheet.getRow(eLine3).height = 24;
-
-  if (imageId !== undefined) {
-    eventSheet.addImage(imageId, {
-      tl: { col: 7, row: 0 },
-      ext: { width: 160, height: 75 },
-    });
-  }
-
-  eventSheet.addRow([]);
-
-  const eventHeaderRow = eventSheet.addRow([
-    "Sự kiện / Khách hàng",
-    "Ngày thực hiện",
-    "Loại mooc",
-    "Số lượng",
-    "Địa điểm",
-    "Chi phí (VNĐ)",
-    "Khách mời",
-    "Kết quả đạt được",
-  ]);
-  styleRow(eventHeaderRow, {
-    font: { bold: true, size: 10, color: { argb: "FFFFFFFF" } },
-    fill: { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } },
-    border: thinBorder,
-    alignment: { vertical: "middle", horizontal: "center", wrapText: true },
-  });
-  eventHeaderRow.height = 22;
-
-  if (events.length === 0) {
-    const emptyRow = eventSheet.addRow(["—", "—", "—", "—", "—", "—", "—", "Chưa có dữ liệu"]);
-    styleRow(emptyRow, {
-      font: { size: 10, italic: true, color: { argb: "FF64748B" } },
-      border: thinBorder,
-      alignment: { vertical: "middle", horizontal: "center" },
-    });
-  } else {
-    events.forEach((event, i) => {
-      const dataRow = eventSheet.addRow([
-        event.event_name,
-        formatReportDate(event.event_date),
-        event.trailer_type || "—",
-        event.qty || "—",
-        event.location || "—",
-        event.budget,
-        event.attendees,
-        event.outcome,
-      ]);
-      styleRow(dataRow, {
-        font: { size: 10 },
-        fill:
-          i % 2 === 1
-            ? { type: "pattern", pattern: "solid", fgColor: { argb: ALT_FILL } }
-            : undefined,
-        border: thinBorder,
-        alignment: { vertical: "top", wrapText: true },
-      });
-    });
-  }
-
   // --- DOWNLOAD ---
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {

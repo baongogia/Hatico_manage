@@ -61,49 +61,53 @@ const NOTICE_MESSAGES: Record<string, { title: string; message: string }> = {
 
 export default function DashboardClient({
   initialData,
-  initialTab = "work",
+  initialTab,
   initialAdminData = null,
   notice,
 }: DashboardClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [activeTab, setActiveTab] = useState<DashboardTab>(initialTab);
-  const [adminData, setAdminData] = useState<AdminDashboardData | null>(initialAdminData);
-  const [adminLoading, startAdminLoad] = useTransition();
 
   const { role, profile, reports: initialReports = [], callReports = [] } = initialData;
   const isAdmin = role === "admin";
   const isSales = isSalesDepartment(profile.department?.name);
   const isMarketing = isMarketingDepartment(profile.department?.name);
 
+  const resolvedInitialTab = initialTab ?? (
+    isAdmin ? "attendance" : (isMarketing ? "marketing" : "work")
+  );
+
+  const [activeTab, setActiveTab] = useState<DashboardTab>(resolvedInitialTab);
+  const [adminData, setAdminData] = useState<AdminDashboardData | null>(initialAdminData);
+  const [adminLoading, startAdminLoad] = useTransition();
+
   const syncTabUrl = useCallback((tab: DashboardTab) => {
-    const url =
-      tab === "summary"
-        ? "/dashboard?view=summary"
-        : tab === "attendance"
-          ? "/dashboard?view=attendance"
-          : tab === "marketing"
-            ? "/dashboard?view=marketing"
-            : "/dashboard";
+    const isDefault =
+      role === "admin"
+        ? tab === "attendance"
+        : isMarketing
+          ? tab === "marketing"
+          : tab === "work";
+    const url = isDefault ? "/dashboard" : `/dashboard?view=${tab}`;
     window.history.replaceState(null, "", url);
-  }, []);
+  }, [role, isMarketing]);
 
   const mainTabOptions = isAdmin
     ? [
+        { value: "attendance" as const, label: "Báo cáo điểm danh", shortLabel: "Điểm danh" },
+        { value: "marketing" as const, label: "Báo cáo Marketing", shortLabel: "Marketing" },
         { value: "work" as const, label: "Báo cáo công việc", shortLabel: "Công việc" },
         ...(isSales
           ? [{ value: "calls" as const, label: "Báo cáo cuộc gọi", shortLabel: "Cuộc gọi" }]
           : []),
-        { value: "marketing" as const, label: "Báo cáo Marketing", shortLabel: "Marketing" },
         { value: "summary" as const, label: "Tổng hợp", shortLabel: "Tổng hợp" },
-        { value: "attendance" as const, label: "Báo cáo điểm danh", shortLabel: "Điểm danh" },
       ]
     : [
-        { value: "work" as const, label: "Báo cáo công việc", shortLabel: "Công việc" },
-        { value: "calls" as const, label: "Báo cáo cuộc gọi", shortLabel: "Cuộc gọi" },
         ...(isMarketing
           ? [{ value: "marketing" as const, label: "Báo cáo Marketing", shortLabel: "Marketing" }]
           : []),
+        { value: "work" as const, label: "Báo cáo công việc", shortLabel: "Công việc" },
+        { value: "calls" as const, label: "Báo cáo cuộc gọi", shortLabel: "Cuộc gọi" },
       ];
 
   useEffect(() => {

@@ -30,7 +30,7 @@ export function MarketingExcelPreviewModal({
   posts,
   events,
 }: MarketingExcelPreviewModalProps) {
-  const [activeTab, setActiveTab] = useState<"kpi" | "posts" | "events">("kpi");
+  const [activeTab, setActiveTab] = useState<"kpi" | "posts">("kpi");
 
   let tiktokCount = 0, tiktokViews = 0, tiktokOver5k = 0, tiktokOver10k = 0;
   let fbCount = 0, fbReach = 0, fbInteractions = 0, fbComments = 0;
@@ -38,7 +38,16 @@ export function MarketingExcelPreviewModal({
   let webCount = 0;
 
   posts.forEach(p => {
-    const views = parseInt(String(p.views).replace(/[^0-9]/g, "")) || 0;
+    const rawViews = String(p.views || "").toLowerCase();
+    const views = rawViews.includes(">10k") || rawViews.includes("> 10k")
+      ? 10000
+      : (rawViews.includes(">5k") || rawViews.includes("> 5k")
+        ? 5000
+        : (rawViews.includes(">2k") || rawViews.includes("> 2k")
+          ? 2000
+          : (rawViews.includes(">1k") || rawViews.includes("> 1k")
+            ? 1000
+            : (parseInt(rawViews.replace(/[^0-9]/g, "")) || 0))));
     const likes = parseInt(String(p.likes).replace(/[^0-9]/g, "")) || 0;
     const comments = parseInt(String(p.comments).replace(/[^0-9]/g, "")) || 0;
     const shares = parseInt(String(p.shares).replace(/[^0-9]/g, "")) || 0;
@@ -133,17 +142,6 @@ export function MarketingExcelPreviewModal({
             }`}
           >
             Sheet 2: Hiệu suất đăng bài ({posts.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("events")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-              activeTab === "events"
-                ? "bg-[#0f2d59] text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            Sheet 3: Bàn giao mooc & Sự kiện ({events.length})
           </button>
         </div>
 
@@ -252,7 +250,7 @@ export function MarketingExcelPreviewModal({
                   );
                 })}
               </div>
-            ) : activeTab === "posts" ? (
+            ) : (
               /* Simulated Sheet 2: Posts */
               <div className="bg-white border border-slate-300 shadow-sm font-sans text-xs text-slate-800 grid grid-cols-[40px_1fr_2.4fr_1.8fr_1fr_1fr_1.2fr] relative select-none">
                 
@@ -359,125 +357,6 @@ export function MarketingExcelPreviewModal({
                         </div>
                         <div className={`${rowBg} border-b border-slate-200 px-2 text-slate-500 flex items-start py-1.5 justify-center`}>
                           {post.report_date}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            ) : (
-              /* Simulated Sheet 2: Events */
-              <div className="bg-white border border-slate-300 shadow-sm font-sans text-xs text-slate-800 grid grid-cols-[40px_1.4fr_1fr_1fr_0.8fr_1.2fr_1.1fr_0.9fr_1.6fr] relative select-none">
-                
-                {/* Columns Header (A to H) */}
-                <div className="bg-[#f3f4f6] text-[#4b5563] text-center font-bold border-r border-b border-slate-300 py-1 flex items-center justify-center text-[10px]">
-                  {/* corner */}
-                </div>
-                {["A", "B", "C", "D", "E", "F", "G", "H"].map((col) => (
-                  <div
-                    key={col}
-                    className={`bg-[#f3f4f6] text-[#4b5563] text-center font-bold border-slate-300 py-1 text-[10px] ${
-                      col !== "H" ? "border-r border-b" : "border-b"
-                    }`}
-                  >
-                    {col}
-                  </div>
-                ))}
-
-                {/* Row 1: Company Info */}
-                <div className="bg-[#f3f4f6] text-[#6b7280] text-center font-semibold border-r border-b border-slate-300 py-2.5 flex items-center justify-center text-[10px] h-10">
-                  1
-                </div>
-                <div className="col-span-7 border-r border-b border-slate-200 px-3 font-bold text-slate-900 flex items-center h-10">
-                  CÔNG TY CỔ PHẦN XNK QUỐC TẾ HATICO
-                </div>
-                {/* Logo in Column H spanning Rows 1-3 */}
-                <div className="row-span-3 border-b border-slate-200 p-2 flex items-center justify-end pr-4 bg-white">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/logo/hatico_logo.png" alt="Logo" className="w-[140px] h-[65px] object-contain" />
-                </div>
-
-                {/* Row 2: Title */}
-                <div className="bg-[#f3f4f6] text-[#6b7280] text-center font-semibold border-r border-b border-slate-300 py-3 flex items-center justify-center text-[10px] h-12">
-                  2
-                </div>
-                <div className="col-span-7 border-r border-b border-slate-200 px-3 font-bold text-[#0f2d59] text-[13px] flex items-center h-12">
-                  BÁO CÁO BÀN GIAO MOOC & SỰ KIỆN
-                </div>
-
-                {/* Row 3: Stats */}
-                <div className="bg-[#f3f4f6] text-[#6b7280] text-center font-semibold border-r border-b border-slate-300 py-2 flex items-center justify-center text-[10px] h-10">
-                  3
-                </div>
-                <div className="col-span-7 border-r border-b border-slate-200 px-3 text-slate-600 text-[10px] flex items-center h-10 leading-snug">
-                  Nhân viên: {staffName}{branchName ? ` · ${branchName}` : ""} · Khoảng: {PERIOD_LABELS[period]} · Tổng: {events.length} sự kiện
-                </div>
-
-                {/* Row 4: Spacer */}
-                <div className="bg-[#f3f4f6] text-[#6b7280] text-center font-semibold border-r border-b border-slate-300 py-1.5 flex items-center justify-center text-[10px] h-6">
-                  4
-                </div>
-                <div className="col-span-8 border-b border-slate-200 h-6"></div>
-
-                {/* Row 5: Table Column Headers */}
-                <div className="bg-[#f3f4f6] text-[#6b7280] text-center font-semibold border-r border-b border-slate-300 flex items-center justify-center text-[10px] h-7">
-                  5
-                </div>
-                {["Sự kiện / Khách hàng", "Ngày thực hiện", "Loại mooc", "Số lượng", "Địa điểm", "Chi phí (VNĐ)", "Khách mời", "Kết quả đạt được"].map((header, idx) => (
-                  <div
-                    key={idx}
-                    className={`bg-[#0f2d59] text-white font-bold px-2 flex items-center h-7 justify-center text-[10px] text-center ${
-                      idx !== 7 ? "border-r border-b border-slate-300" : "border-b border-slate-300"
-                    }`}
-                  >
-                    {header}
-                  </div>
-                ))}
-
-                {/* Data Rows */}
-                {events.length === 0 ? (
-                  <div className="contents">
-                    <div className="bg-[#f3f4f6] text-[#6b7280] text-center font-semibold border-r border-b border-slate-300 flex items-center justify-center text-[10px] h-10">
-                      6
-                    </div>
-                    <div className="col-span-8 border-b border-slate-200 text-slate-400 italic flex items-center justify-center h-10 bg-white">
-                      Chưa có dữ liệu
-                    </div>
-                  </div>
-                ) : (
-                  events.map((event, idx) => {
-                    const dataRowIndex = 6 + idx;
-                    const isEven = idx % 2 === 1;
-                    const rowBg = isEven ? "bg-[#f8fafc]" : "bg-white";
-
-                    return (
-                      <div key={idx} className="contents">
-                        <div className="bg-[#f3f4f6] text-[#6b7280] text-center font-semibold border-r border-b border-slate-300 flex items-center justify-center text-[10px] min-h-[28px] py-1.5">
-                          {dataRowIndex}
-                        </div>
-                        <div className={`${rowBg} border-r border-b border-slate-200 px-2 font-semibold text-slate-900 flex items-start py-1.5`}>
-                          {event.event_name}
-                        </div>
-                        <div className={`${rowBg} border-r border-b border-slate-200 px-2 text-slate-600 flex items-start py-1.5 justify-center`}>
-                          {event.event_date}
-                        </div>
-                        <div className={`${rowBg} border-r border-b border-slate-200 px-2 text-slate-600 flex items-start py-1.5 justify-center`}>
-                          {event.trailer_type || "—"}
-                        </div>
-                        <div className={`${rowBg} border-r border-b border-slate-200 px-2 text-slate-600 flex items-start py-1.5 justify-center`}>
-                          {event.qty || "—"}
-                        </div>
-                        <div className={`${rowBg} border-r border-b border-slate-200 px-2 text-slate-600 flex items-start py-1.5`}>
-                          {event.location || "—"}
-                        </div>
-                        <div className={`${rowBg} border-r border-b border-slate-200 px-2 text-slate-600 flex items-start py-1.5 justify-end font-mono`}>
-                          {event.budget || "—"}
-                        </div>
-                        <div className={`${rowBg} border-r border-b border-slate-200 px-2 text-slate-600 flex items-start py-1.5 justify-center`}>
-                          {event.attendees || "—"}
-                        </div>
-                        <div className={`${rowBg} border-b border-slate-200 px-2 text-slate-600 flex items-start py-1.5`}>
-                          {event.outcome || "—"}
                         </div>
                       </div>
                     );

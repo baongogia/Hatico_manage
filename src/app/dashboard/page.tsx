@@ -1,6 +1,7 @@
 import { getSessionUser, getDashboardData, getAdminDashboardData } from "../actions";
 import { redirect } from "next/navigation";
 import DashboardClient from "./dashboard-client";
+import { isMarketingDepartment } from "@/lib/report-data";
 
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -22,13 +23,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   }
 
   const initialTab =
-    data.role === "admin" && resolvedParams.view === "summary"
+    resolvedParams.view === "summary"
       ? "summary"
-      : data.role === "admin" && resolvedParams.view === "attendance"
+      : resolvedParams.view === "attendance"
         ? "attendance"
         : resolvedParams.view === "marketing"
           ? "marketing"
-          : "work";
+          : resolvedParams.view === "calls"
+            ? "calls"
+            : resolvedParams.view === "work"
+              ? "work"
+              : data.role === "admin"
+                ? "attendance"
+                : isMarketingDepartment(data.profile?.department?.name)
+                  ? "marketing"
+                  : "work";
 
   let initialAdminData = null;
   if (initialTab === "summary" || initialTab === "attendance") {
