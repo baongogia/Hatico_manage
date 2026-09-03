@@ -8,6 +8,8 @@ interface DatePickerModalProps {
   onClose: () => void;
   onSelect: (date: string) => void;
   title?: string;
+  isDateDisabled?: (dateStr: string) => boolean;
+  disabledReason?: (dateStr: string) => string | undefined;
 }
 
 const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -40,6 +42,8 @@ export default function DatePickerModal({
   onClose,
   onSelect,
   title = "Chọn ngày báo cáo",
+  isDateDisabled,
+  disabledReason,
 }: DatePickerModalProps) {
   const initial = parseDate(value);
   const [viewYear, setViewYear] = useState(initial.year);
@@ -110,11 +114,18 @@ export default function DatePickerModal({
   };
 
   const handleConfirm = () => {
+    if (isDateDisabled?.(pendingDate)) {
+      return;
+    }
     onSelect(pendingDate);
     onClose();
   };
 
   if (!open) return null;
+
+  const isPendingDisabled = isDateDisabled?.(pendingDate);
+  const pendingDisabledReason = isPendingDisabled ? disabledReason?.(pendingDate) : undefined;
+  const isTodayDisabled = isDateDisabled?.(todayStr);
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 no-print">
@@ -165,7 +176,12 @@ export default function DatePickerModal({
 
           <div className="grid grid-cols-7 gap-1.5">
             {WEEKDAYS.map((day) => (
-              <div key={day} className="text-[10px] font-bold text-slate-400 text-center py-1">
+              <div
+                key={day}
+                className={`text-[10px] font-bold text-center py-1 ${
+                  day === "CN" ? "text-amber-600" : "text-slate-400"
+                }`}
+              >
                 {day}
               </div>
             ))}
@@ -174,19 +190,25 @@ export default function DatePickerModal({
               const dateStr = toDateString(cell.year, cell.month, cell.day);
               const isSelected = pendingDate === dateStr;
               const isToday = todayStr === dateStr;
+              const isDisabled = isDateDisabled ? isDateDisabled(dateStr) : false;
+              const reason = isDisabled ? disabledReason?.(dateStr) : undefined;
 
               return (
                 <button
                   key={`${dateStr}-${idx}`}
-                  onClick={() => setPendingDate(dateStr)}
-                  className={`aspect-square rounded-lg text-sm font-semibold transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-primary text-white shadow-md scale-105"
-                      : isToday
-                        ? "bg-white text-primary ring-2 ring-primary/20"
-                        : cell.currentMonth
-                          ? "bg-white text-slate-700 hover:bg-slate-100"
-                          : "bg-transparent text-slate-300 hover:bg-white/60"
+                  disabled={isDisabled}
+                  onClick={() => !isDisabled && setPendingDate(dateStr)}
+                  title={isDisabled ? `${reason || "Ngày nghỉ"} (Không thể chọn)` : undefined}
+                  className={`aspect-square rounded-lg text-sm font-semibold transition-all select-none ${
+                    isDisabled
+                      ? "bg-slate-100/60 text-slate-300 cursor-not-allowed opacity-50 line-through"
+                      : isSelected
+                        ? "bg-primary text-white shadow-md scale-105 cursor-pointer"
+                        : isToday
+                          ? "bg-white text-primary ring-2 ring-primary/20 cursor-pointer"
+                          : cell.currentMonth
+                            ? "bg-white text-slate-700 hover:bg-slate-100 cursor-pointer"
+                            : "bg-transparent text-slate-300 hover:bg-white/60 cursor-pointer"
                   }`}
                 >
                   {cell.day}
@@ -198,13 +220,19 @@ export default function DatePickerModal({
 
         <div className="flex items-center justify-between gap-3">
           <button
+            disabled={isTodayDisabled}
             onClick={() => {
+              if (isTodayDisabled) return;
               setPendingDate(todayStr);
               const parsed = parseDate(todayStr);
               setViewYear(parsed.year);
               setViewMonth(parsed.month);
             }}
-            className="text-primary hover:text-primary-hover font-bold text-xs px-3 py-2 rounded-lg hover:bg-primary/5 transition-colors cursor-pointer"
+            className={`font-bold text-xs px-3 py-2 rounded-lg transition-colors ${
+              isTodayDisabled
+                ? "text-slate-300 cursor-not-allowed"
+                : "text-primary hover:text-primary-hover hover:bg-primary/5 cursor-pointer"
+            }`}
           >
             Hôm nay
           </button>
@@ -212,6 +240,11 @@ export default function DatePickerModal({
           <div className="text-right">
             <p className="text-[10px] text-slate-400 uppercase font-bold">Ngày đã chọn</p>
             <p className="text-sm font-bold text-slate-800">{formatDisplay(pendingDate)}</p>
+            {isPendingDisabled && (
+              <p className="text-[10px] font-bold text-amber-600">
+                {pendingDisabledReason || "Ngày nghỉ (Không thể chọn)"}
+              </p>
+            )}
           </div>
         </div>
 
@@ -223,8 +256,9 @@ export default function DatePickerModal({
             Hủy
           </button>
           <button
+            disabled={isPendingDisabled}
             onClick={handleConfirm}
-            className="flex-1 bg-primary hover:bg-primary-hover text-white font-bold text-sm py-3 rounded-lg transition-colors cursor-pointer shadow-sm"
+            className="flex-1 bg-primary hover:bg-primary-hover disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm py-3 rounded-lg transition-colors cursor-pointer shadow-sm disabled:cursor-not-allowed"
           >
             Xác nhận
           </button>
@@ -233,3 +267,4 @@ export default function DatePickerModal({
     </div>
   );
 }
+

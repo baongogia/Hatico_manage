@@ -19,9 +19,11 @@ import {
   attendanceCellKey,
 } from "@/lib/admin-dashboard-utils";
 import { downloadAdminAttendanceExcel, downloadDailyAttendanceExcel } from "@/lib/attendance-export";
+import { useOffDaySettings } from "@/lib/off-day-settings";
 import DatePickerModal, { formatDateButtonLabel } from "./date-picker-modal";
 import AdminSelect, { adminControlClass } from "./admin-select";
 import { DailyAttendancePreviewModal, MonthlyAttendancePreviewModal } from "./attendance-preview-modal";
+import { OffDaySettingsModal } from "./off-day-settings-modal";
 
 type AdminAttendancePanelProps = {
   initialData: AdminDashboardData;
@@ -37,6 +39,10 @@ export function AdminAttendancePanel({
   const [selectedDate, setSelectedDate] = useState(initialData.date);
 
   const [subTab, setSubTab] = useState<"daily" | "monthly">("daily");
+
+  const { settings: offDaySettings, updateSettings: updateOffDaySettings, isDateOff } = useOffDaySettings();
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const selectedDayOffInfo = useMemo(() => isDateOff(selectedDate), [isDateOff, selectedDate]);
 
   const todayStr = useMemo(() => {
     return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
@@ -242,7 +248,7 @@ export function AdminAttendancePanel({
 
   // Inline reason editing handlers
   const startEditingReason = (row: AdminStaffRow) => {
-    if (row.hasReport) return;
+    if (row.hasReport || selectedDayOffInfo.isOff) return;
     setEditingStaffId(row.id);
     setEditingReasonText(row.absence_reason || "");
   };
@@ -478,17 +484,24 @@ export function AdminAttendancePanel({
     return getDaysInMonth(selectedMonth);
   }, [selectedMonth]);
 
-  const workingDaysInMonth = useMemo(() => {
-    const [year, month] = selectedMonth.split("-").map(Number);
-    const days = [];
+  const allDaysInSelectedMonth = useMemo(() => {
+    const days: number[] = [];
     for (let day = 1; day <= daysInSelectedMonth; day++) {
-      const date = new Date(year, month - 1, day);
-      if (date.getDay() !== 0) { // Exclude Sunday (0)
+      days.push(day);
+    }
+    return days;
+  }, [daysInSelectedMonth]);
+
+  const workingDaysInMonth = useMemo(() => {
+    const days: number[] = [];
+    for (let day = 1; day <= daysInSelectedMonth; day++) {
+      const dateStr = `${selectedMonth}-${String(day).padStart(2, "0")}`;
+      if (!isDateOff(dateStr).isOff) {
         days.push(day);
       }
     }
     return days;
-  }, [selectedMonth, daysInSelectedMonth]);
+  }, [selectedMonth, daysInSelectedMonth, isDateOff]);
 
   const getDayOfWeekLabel = (day: number) => {
     const [year, month] = selectedMonth.split("-").map(Number);
@@ -496,9 +509,25 @@ export function AdminAttendancePanel({
     const dayNames = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
     return {
       label: dayNames[date.getDay()],
-      isWeekend: date.getDay() === 0 || date.getDay() === 6
+      isWeekend: date.getDay() === 0 || date.getDay() === 6,
     };
   };
+
+  const getStaffPresentCount = useCallback(
+    (row: MonthlyAttendanceStaffRow) => {
+      let count = 0;
+      for (let day = 1; day <= daysInSelectedMonth; day++) {
+        const dateStr = `${selectedMonth}-${String(day).padStart(2, "0")}`;
+        const isOff = isDateOff(dateStr).isOff;
+        const att = row.attendanceMap[dateStr];
+        if (att?.hasReport && !isOff) {
+          count++;
+        }
+      }
+      return count;
+    },
+    [daysInSelectedMonth, selectedMonth, isDateOff],
+  );
 
   const formatMonthLabel = (monthStr: string) => {
     const [year, month] = monthStr.split("-");
@@ -608,6 +637,19 @@ export function AdminAttendancePanel({
             ]}
           />
 
+          <button
+            type="button"
+            onClick={() => setShowSettingsModal(true)}
+            className="h-10 flex items-center justify-center gap-1.5 rounded-lg text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 shadow-xs cursor-pointer px-3 transition-colors shrink-0"
+            title="Cài đặt tùy chọn ngày nghỉ & Chủ nhật"
+          >
+            <svg className="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="hidden sm:inline">Cài đặt ngày nghỉ</span>
+          </button>
+
           {/* Search bar */}
           <div className="relative w-48 sm:w-56">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
@@ -630,6 +672,21 @@ export function AdminAttendancePanel({
       <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50/50">
         {subTab === "daily" ? (
           <div className="p-4 space-y-4">
+            {/* Daily Day-Off Banner */}
+            {selectedDayOffInfo.isOff && (
+              <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl px-4 py-3 flex items-center justify-between shadow-xs animate-fade-in">
+                <div className="flex items-center gap-2.5 text-amber-900 font-bold text-xs">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+                  <span>
+                    {formatDateButtonLabel(selectedDate)} là <strong>{selectedDayOffInfo.reason || "Ngày nghỉ"}</strong> — Thao tác điểm danh đã bị vô hiệu hóa
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 px-2.5 py-1 rounded-md border border-amber-300/80 uppercase shrink-0">
+                  Ngày nghỉ
+                </span>
+              </div>
+            )}
+
             {/* Daily Stat Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm flex items-center gap-3.5">
@@ -793,7 +850,14 @@ export function AdminAttendancePanel({
                             )}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            {isCellToggling(row.id, selectedDate) ? (
+                            {selectedDayOffInfo.isOff ? (
+                              <span
+                                title={`${selectedDayOffInfo.reason || "Ngày nghỉ"} — Thao tác điểm danh bị vô hiệu hóa`}
+                                className="inline-flex items-center justify-center px-2.5 py-1 rounded-[4px] text-[10px] font-bold text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed select-none opacity-80 whitespace-nowrap"
+                              >
+                                Ngày nghỉ
+                              </span>
+                            ) : isCellToggling(row.id, selectedDate) ? (
                               <span className="inline-flex items-center justify-center">
                                 <svg className="animate-spin h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -876,10 +940,10 @@ export function AdminAttendancePanel({
                 {/* Stats Summary inside the table wrapper */}
                 <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-700">
-                    Bảng công tháng {formatMonthLabel(selectedMonth)} (Tổng số: {filteredMonthlyStaff.length} người)
+                    Bảng công tháng {formatMonthLabel(selectedMonth)} (Tổng số: {filteredMonthlyStaff.length} người · {workingDaysInMonth.length} ngày làm việc)
                   </span>
                   <span className="text-[10px] text-slate-400 italic">
-                    Ký hiệu: <strong className="text-emerald-600 font-black bg-transparent border border-emerald-600 px-1.5 py-0.5 rounded">x</strong> = Đi làm · <strong className="text-amber-600 font-black bg-transparent border border-amber-600 px-1.5 py-0.5 rounded">M</strong> = Đi muộn · <strong className="text-rose-600 font-black bg-transparent border border-rose-600 px-1.5 py-0.5 rounded">P</strong> = Nghỉ phép · <strong className="text-rose-600 font-black bg-transparent border border-rose-600 px-1.5 py-0.5 rounded">V</strong> = Vắng không phép · <strong className="text-slate-400 font-bold">•</strong> = Ngày tương lai (Bấm ô để chỉnh sửa)
+                    Ký hiệu: <strong className="text-emerald-600 font-black bg-transparent border border-emerald-600 px-1.5 py-0.5 rounded">x</strong> = Đi làm · <strong className="text-amber-600 font-black bg-transparent border border-amber-600 px-1.5 py-0.5 rounded">M</strong> = Đi muộn · <strong className="text-rose-600 font-black bg-transparent border border-rose-600 px-1.5 py-0.5 rounded">P</strong> = Nghỉ phép · <strong className="text-rose-600 font-black bg-transparent border border-rose-600 px-1.5 py-0.5 rounded">V</strong> = Vắng không phép · <strong className="text-slate-400 font-bold">•</strong> = Ngày tương lai · <strong className="text-slate-400 font-bold">—</strong> = Ngày nghỉ (UI Disable)
                   </span>
                 </div>
 
@@ -892,17 +956,26 @@ export function AdminAttendancePanel({
                         <th className="px-3 py-3 w-28 text-center">Chi nhánh</th>
                         <th className="px-3 py-3 w-28 text-center">Bộ phận</th>
                         {/* Day headers */}
-                        {workingDaysInMonth.map((day) => {
+                        {allDaysInSelectedMonth.map((day) => {
+                          const dateStr = `${selectedMonth}-${String(day).padStart(2, "0")}`;
+                          const dayOffInfo = isDateOff(dateStr);
                           const { label, isWeekend } = getDayOfWeekLabel(day);
                           return (
                             <th
                               key={day}
+                              title={dayOffInfo.reason}
                               className={`px-1 py-1 text-center w-8 border-r border-slate-100 leading-tight ${
-                                isWeekend ? "bg-amber-50/70 text-amber-700" : ""
+                                dayOffInfo.isOff
+                                  ? "bg-slate-100/90 text-slate-500 font-bold"
+                                  : isWeekend
+                                    ? "bg-amber-50/70 text-amber-700"
+                                    : ""
                               }`}
                             >
                               <div>{day}</div>
-                              <div className="text-[8px] font-medium opacity-75">{label}</div>
+                              <div className={`text-[8px] font-medium ${dayOffInfo.isOff ? "text-amber-700 font-bold" : "opacity-75"}`}>
+                                {dayOffInfo.isWeeklyOff ? label : dayOffInfo.isOff ? "Nghỉ" : label}
+                              </div>
                             </th>
                           );
                         })}
@@ -912,7 +985,7 @@ export function AdminAttendancePanel({
                     <tbody className="divide-y divide-slate-100">
                       {filteredMonthlyStaff.length === 0 ? (
                         <tr>
-                          <td colSpan={4 + workingDaysInMonth.length} className="text-center py-10 text-slate-400 italic">
+                          <td colSpan={4 + allDaysInSelectedMonth.length} className="text-center py-10 text-slate-400 italic">
                             Không tìm thấy nhân sự phù hợp
                           </td>
                         </tr>
@@ -934,11 +1007,25 @@ export function AdminAttendancePanel({
                             <td className="px-3 py-2.5 text-center text-slate-500 font-medium truncate">{row.department || "—"}</td>
 
                             {/* Calendar columns */}
-                            {workingDaysInMonth.map((day) => {
+                            {allDaysInSelectedMonth.map((day) => {
                               const dateStr = `${selectedMonth}-${String(day).padStart(2, "0")}`;
+                              const dayOffInfo = isDateOff(dateStr);
                               const att = row.attendanceMap[dateStr];
                               const { isWeekend } = getDayOfWeekLabel(day);
                               const isCellTogglingMonthly = isCellToggling(row.id, dateStr);
+
+                              // Disabled UI for off-days
+                              if (dayOffInfo.isOff) {
+                                return (
+                                  <td
+                                    key={day}
+                                    title={`${dayOffInfo.reason || "Ngày nghỉ"} — Vô hiệu hóa điểm danh`}
+                                    className="px-1 py-2.5 text-center border-r border-slate-100 text-[10px] bg-slate-100/60 text-slate-300 font-bold select-none cursor-not-allowed"
+                                  >
+                                    <span className="block w-full text-center text-slate-300 select-none font-normal">—</span>
+                                  </td>
+                                );
+                              }
 
                               const isFuture = dateStr > todayStr;
                               let cellClass = "px-1 py-2.5 text-center border-r border-slate-100 text-[10px] font-bold cursor-pointer transition-all select-none ";
@@ -990,7 +1077,7 @@ export function AdminAttendancePanel({
 
                             {/* Total days present sticky column */}
                             <td className="px-3 py-2.5 text-center font-black text-primary sticky right-0 bg-white z-10 border-l border-slate-100 text-[11px]">
-                              {row.presentCount}
+                              {getStaffPresentCount(row)}
                             </td>
                           </tr>
                         ))
@@ -1014,6 +1101,16 @@ export function AdminAttendancePanel({
         onClose={() => setShowDatePicker(false)}
         onSelect={handleDateChange}
         title="Chọn ngày xem điểm danh"
+        isDateDisabled={(d) => isDateOff(d).isOff}
+        disabledReason={(d) => isDateOff(d).reason}
+      />
+
+      {/* Off Day Settings Modal */}
+      <OffDaySettingsModal
+        open={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        settings={offDaySettings}
+        onSave={updateOffDaySettings}
       />
 
       {/* Manual Status Toggling Modal */}

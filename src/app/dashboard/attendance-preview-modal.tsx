@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { AdminStaffRow, MonthlyAttendanceStaffRow } from "../actions";
+import { checkIsOffDay } from "@/lib/off-day-settings";
 
 // Format date to DD/MM/YYYY
 function formatReportDate(dateString: string) {
@@ -237,15 +238,15 @@ export function MonthlyAttendancePreviewModal({
   const lastDay = new Date(Number(year), Number(monthNum), 0).getDate();
 
   const workingDays = useMemo(() => {
-    const days = [];
+    const days: number[] = [];
     for (let d = 1; d <= lastDay; d++) {
-      const date = new Date(Number(year), Number(monthNum) - 1, d);
-      if (date.getDay() !== 0) { // Exclude Sunday
+      const dateStr = `${selectedMonth}-${String(d).padStart(2, "0")}`;
+      if (!checkIsOffDay(dateStr).isOff) {
         days.push(d);
       }
     }
     return days;
-  }, [year, monthNum, lastDay]);
+  }, [selectedMonth, lastDay]);
 
   if (!open) return null;
 
@@ -256,7 +257,7 @@ export function MonthlyAttendancePreviewModal({
   const getHeaderLetter = (idx: number) => {
     let temp = "";
     while (idx > 0) {
-      let modulo = (idx - 1) % 26;
+      const modulo = (idx - 1) % 26;
       temp = String.fromCharCode(65 + modulo) + temp;
       idx = Math.floor((idx - modulo) / 26);
     }
@@ -440,7 +441,16 @@ export function MonthlyAttendancePreviewModal({
                     })}
 
                     <div className={`w-[80px] shrink-0 text-center font-bold text-[#0f2d59] flex items-center justify-center ${rowBg}`}>
-                      {s.presentCount}
+                      {(() => {
+                        let count = 0;
+                        for (let d = 1; d <= lastDay; d++) {
+                          const dateStr = `${selectedMonth}-${String(d).padStart(2, "0")}`;
+                          if (s.attendanceMap[dateStr]?.hasReport && !checkIsOffDay(dateStr).isOff) {
+                            count++;
+                          }
+                        }
+                        return count;
+                      })()}
                     </div>
                   </div>
                 );

@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import type { MonthlyAttendanceStaffRow, AdminStaffRow } from "@/app/actions";
+import { checkIsOffDay } from "./off-day-settings";
 
 const PRIMARY = "FF0F2D59";
 const BORDER = "FF475569";
@@ -35,8 +36,8 @@ export async function downloadAdminAttendanceExcel(filename: string, options: Ex
 
   const workingDays: number[] = [];
   for (let d = 1; d <= lastDay; d++) {
-    const date = new Date(Number(year), Number(monthNum) - 1, d);
-    if (date.getDay() !== 0) { // Exclude Sunday (0)
+    const dateStr = `${month}-${String(d).padStart(2, "0")}`;
+    if (!checkIsOffDay(dateStr).isOff) {
       workingDays.push(d);
     }
   }
@@ -78,7 +79,7 @@ export async function downloadAdminAttendanceExcel(filename: string, options: Ex
     const getColLetter = (idx: number) => {
       let temp = "";
       while (idx > 0) {
-        let modulo = (idx - 1) % 26;
+        const modulo = (idx - 1) % 26;
         temp = String.fromCharCode(65 + modulo) + temp;
         idx = Math.floor((idx - modulo) / 26);
       }
@@ -196,7 +197,14 @@ export async function downloadAdminAttendanceExcel(filename: string, options: Ex
       }
     });
 
-    rowValues.push(String(s.presentCount));
+      let staffPresentDays = 0;
+      for (let d = 1; d <= lastDay; d++) {
+        const dStr = `${month}-${String(d).padStart(2, "0")}`;
+        if (s.attendanceMap[dStr]?.hasReport && !checkIsOffDay(dStr).isOff) {
+          staffPresentDays++;
+        }
+      }
+      rowValues.push(String(staffPresentDays));
 
     const dataRow = sheet.addRow(rowValues);
     styleRow(dataRow, {
@@ -297,7 +305,7 @@ export async function downloadDailyAttendanceExcel(filename: string, options: Ex
     const getColLetter = (idx: number) => {
       let temp = "";
       while (idx > 0) {
-        let modulo = (idx - 1) % 26;
+        const modulo = (idx - 1) % 26;
         temp = String.fromCharCode(65 + modulo) + temp;
         idx = Math.floor((idx - modulo) / 26);
       }
