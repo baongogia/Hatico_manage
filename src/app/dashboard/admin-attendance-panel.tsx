@@ -433,17 +433,22 @@ export function AdminAttendancePanel({
     });
   }, [monthlyData, branchFilter, searchQuery]);
 
-  // Present/Absent/Late counts for current daily data
-  const { dailyPresentCount, dailyLateCount, dailyAbsentCount } = useMemo(() => {
-    const present = dailyData.staff.filter(s => s.hasReport && !s.isLate).length;
-    const late = dailyData.staff.filter(s => s.hasReport && s.isLate).length;
-    const absent = dailyData.staff.filter(s => !s.hasReport).length;
+  // Present/Absent/Late counts for current daily data (filtered by selected branch)
+  const { dailyTotalCount, dailyPresentCount, dailyLateCount, dailyAbsentCount } = useMemo(() => {
+    const branchStaff = dailyData.staff.filter((s) => {
+      if (branchFilter !== "all" && s.branch_id !== branchFilter) return false;
+      return true;
+    });
+    const present = branchStaff.filter((s) => s.hasReport && !s.isLate).length;
+    const late = branchStaff.filter((s) => s.hasReport && s.isLate).length;
+    const absent = branchStaff.filter((s) => !s.hasReport).length;
     return {
+      dailyTotalCount: branchStaff.length,
       dailyPresentCount: present,
       dailyLateCount: late,
-      dailyAbsentCount: absent
+      dailyAbsentCount: absent,
     };
-  }, [dailyData.staff]);
+  }, [dailyData.staff, branchFilter]);
 
   // Excel Downloads after preview confirm
   const handleConfirmExportMonthlyExcel = async () => {
@@ -535,26 +540,26 @@ export function AdminAttendancePanel({
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/92 shadow-[0_8px_32px_rgba(15,45,89,0.08)]">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
       {/* Tab bar and header controls */}
-      <div className="border-b border-slate-100 px-4 py-3 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white/40">
-        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl self-start">
+      <div className="border-b border-slate-200/90 px-4 py-2.5 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-white">
+        <div className="inline-flex items-center p-0.5 bg-slate-100 rounded-md border border-slate-200/60 self-start shrink-0">
           <button
             onClick={() => setSubTab("daily")}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded text-xs transition-all cursor-pointer ${
               subTab === "daily"
-                ? "bg-white text-primary shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
+                ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                : "text-slate-500 hover:text-slate-800 font-medium"
             }`}
           >
             Điểm danh ngày
           </button>
           <button
             onClick={() => setSubTab("monthly")}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3 py-1 rounded text-xs transition-all cursor-pointer ${
               subTab === "monthly"
-                ? "bg-white text-primary shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
+                ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                : "text-slate-500 hover:text-slate-800 font-medium"
             }`}
           >
             Bảng công tháng
@@ -568,9 +573,9 @@ export function AdminAttendancePanel({
               <button
                 type="button"
                 onClick={() => setShowDatePicker(true)}
-                className={`${adminControlClass} flex items-center justify-center gap-2 cursor-pointer h-10`}
+                className={`${adminControlClass} flex items-center justify-center gap-2 cursor-pointer`}
               >
-                <svg className="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <span className="truncate">{formatDateButtonLabel(selectedDate)}</span>
@@ -578,9 +583,9 @@ export function AdminAttendancePanel({
 
               <button
                 onClick={() => setShowDailyPreview(true)}
-                className="h-10 flex items-center justify-center gap-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 shadow-sm cursor-pointer px-4 transition-colors"
+                className="h-9 flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 shadow-2xs cursor-pointer px-3.5 transition-colors"
               >
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <span>Xuất Excel</span>
@@ -589,7 +594,7 @@ export function AdminAttendancePanel({
               <AdminSelect
                 value={statusFilter}
                 onChange={setStatusFilter}
-                className="w-44"
+                className="w-40 sm:w-44"
                 options={[
                   { value: "all", label: "Tất cả trạng thái" },
                   { value: "present", label: "Đi làm" },
@@ -606,16 +611,16 @@ export function AdminAttendancePanel({
                   type="month"
                   value={selectedMonth}
                   onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
-                  className={`${adminControlClass} h-10 px-3 pr-8 w-44 font-semibold focus:ring-primary/25 cursor-pointer`}
+                  className={`${adminControlClass} px-3 pr-8 w-40 sm:w-44 focus:ring-primary/25 cursor-pointer`}
                 />
               </div>
 
               {monthlyData && (
                 <button
                   onClick={() => setShowMonthlyPreview(true)}
-                  className="h-10 flex items-center justify-center gap-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 shadow-sm cursor-pointer px-4 transition-colors"
+                  className="h-9 flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 shadow-2xs cursor-pointer px-3.5 transition-colors"
                 >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <span>Xuất bảng công</span>
@@ -627,7 +632,7 @@ export function AdminAttendancePanel({
           <AdminSelect
             value={branchFilter}
             onChange={setBranchFilter}
-            className="w-44"
+            className="w-40 sm:w-44"
             options={[
               { value: "all", label: "Tất cả chi nhánh" },
               ...dailyData.branchStats.map((b) => ({
@@ -640,10 +645,10 @@ export function AdminAttendancePanel({
           <button
             type="button"
             onClick={() => setShowSettingsModal(true)}
-            className="h-10 flex items-center justify-center gap-1.5 rounded-lg text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 shadow-xs cursor-pointer px-3 transition-colors shrink-0"
+            className="h-9 flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 shadow-2xs cursor-pointer px-3 transition-colors shrink-0"
             title="Cài đặt tùy chọn ngày nghỉ & Chủ nhật"
           >
-            <svg className="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
@@ -651,8 +656,8 @@ export function AdminAttendancePanel({
           </button>
 
           {/* Search bar */}
-          <div className="relative w-48 sm:w-56">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+          <div className="relative w-44 sm:w-52">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-slate-400">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
@@ -662,299 +667,347 @@ export function AdminAttendancePanel({
               placeholder="Tìm tên nhân viên..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-10 pl-9 pr-3 rounded-lg border border-slate-200/80 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary/25 transition-all text-xs font-semibold text-slate-800"
+              className="w-full h-9 pl-8 pr-3 rounded-md border border-slate-200 bg-white focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary/25 transition-all text-xs font-normal text-slate-900 placeholder:text-slate-400 shadow-2xs"
             />
           </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50/50">
+      <div className="flex-1 overflow-y-auto min-h-0 bg-white">
         {subTab === "daily" ? (
-          <div className="p-4 space-y-4">
+          <div className="flex flex-col min-h-0">
             {/* Daily Day-Off Banner */}
             {selectedDayOffInfo.isOff && (
-              <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl px-4 py-3 flex items-center justify-between shadow-xs animate-fade-in">
-                <div className="flex items-center gap-2.5 text-amber-900 font-bold text-xs">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+              <div className="mx-4 mt-3 bg-amber-50/90 border border-amber-200 rounded-md px-3.5 py-2 flex items-center justify-between shadow-2xs animate-fade-in">
+                <div className="flex items-center gap-2 text-amber-900 font-medium text-xs">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                   <span>
                     {formatDateButtonLabel(selectedDate)} là <strong>{selectedDayOffInfo.reason || "Ngày nghỉ"}</strong> — Thao tác điểm danh đã bị vô hiệu hóa
                   </span>
                 </div>
-                <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 px-2.5 py-1 rounded-md border border-amber-300/80 uppercase shrink-0">
+                <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded border border-amber-300/70 uppercase shrink-0">
                   Ngày nghỉ
                 </span>
               </div>
             )}
 
             {/* Daily Stat Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-lg bg-transparent border border-primary flex items-center justify-center text-primary shrink-0">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            <div className="px-4 py-3 grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-slate-50/70 rounded-lg p-2.5 sm:p-3 border border-slate-200/70 flex items-center gap-3 transition-colors hover:bg-slate-50">
+                <div className="w-8 h-8 rounded-md bg-white border border-slate-200/80 text-slate-500 flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tổng nhân sự</p>
-                  <p className="text-xl font-black text-slate-800 mt-0.5">{dailyData.staff.length}</p>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider leading-none">Tổng nhân sự</p>
+                  <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none mt-1">{dailyTotalCount}</p>
                 </div>
               </div>
-              <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-lg bg-transparent border border-emerald-600 flex items-center justify-center text-emerald-600 shrink-0">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="bg-slate-50/70 rounded-lg p-2.5 sm:p-3 border border-slate-200/70 flex items-center gap-3 transition-colors hover:bg-slate-50">
+                <div className="w-8 h-8 rounded-md bg-emerald-50/90 border border-emerald-200/60 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đi làm</p>
-                  <p className="text-xl font-black text-emerald-600 mt-0.5">{dailyPresentCount}</p>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider leading-none">Đi làm</p>
+                  <p className="text-lg sm:text-xl font-bold text-emerald-600 leading-none mt-1">{dailyPresentCount}</p>
                 </div>
               </div>
-              <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-lg bg-transparent border border-amber-600 flex items-center justify-center text-amber-600 shrink-0">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="bg-slate-50/70 rounded-lg p-2.5 sm:p-3 border border-slate-200/70 flex items-center gap-3 transition-colors hover:bg-slate-50">
+                <div className="w-8 h-8 rounded-md bg-amber-50/90 border border-amber-200/60 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đi muộn</p>
-                  <p className="text-xl font-black text-amber-600 mt-0.5">{dailyLateCount}</p>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider leading-none">Đi muộn</p>
+                  <p className="text-lg sm:text-xl font-bold text-amber-600 leading-none mt-1">{dailyLateCount}</p>
                 </div>
               </div>
-              <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-lg bg-transparent border border-rose-500 flex items-center justify-center text-rose-500 shrink-0">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="bg-slate-50/70 rounded-lg p-2.5 sm:p-3 border border-slate-200/70 flex items-center gap-3 transition-colors hover:bg-slate-50">
+                <div className="w-8 h-8 rounded-md bg-rose-50/90 border border-rose-200/60 text-rose-600 flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vắng</p>
-                  <p className="text-xl font-black text-rose-500 mt-0.5">{dailyAbsentCount}</p>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider leading-none">Vắng</p>
+                  <p className="text-lg sm:text-xl font-bold text-rose-600 leading-none mt-1">{dailyAbsentCount}</p>
                 </div>
               </div>
             </div>
 
             {/* Daily Table list */}
-            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                      <th className="px-4 py-3">Nhân viên</th>
-                      <th className="px-4 py-3">Chi nhánh</th>
-                      <th className="px-4 py-3">Bộ phận / Chức vụ</th>
-                      <th className="px-4 py-3 text-center">Giờ điểm danh</th>
-                      <th className="px-4 py-3 text-center">Trạng thái</th>
-                      <th className="px-4 py-3">Lý do vắng</th>
-                      <th className="px-4 py-3 text-center w-32">Thao tác</th>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-y border-slate-200/90 bg-slate-50/80 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                    <th className="px-4 py-2.5">Nhân viên</th>
+                    <th className="px-4 py-2.5">Chi nhánh</th>
+                    <th className="px-4 py-2.5">Bộ phận / Chức vụ</th>
+                    <th className="px-4 py-2.5 text-center">Giờ điểm danh</th>
+                    <th className="px-4 py-2.5 text-center">Trạng thái</th>
+                    <th className="px-4 py-2.5">Lý do vắng</th>
+                    <th className="px-4 py-2.5 text-center w-28">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {isPending ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-10">
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <svg className="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          <span className="text-slate-400 font-medium">Đang tải danh sách...</span>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {isPending ? (
-                      <tr>
-                        <td colSpan={7} className="text-center py-10">
-                          <div className="flex flex-col items-center justify-center space-y-2">
-                            <svg className="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            <span className="text-slate-400 font-medium">Đang tải danh sách...</span>
+                  ) : filteredDailyStaff.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-slate-400 italic font-medium">
+                        Không tìm thấy nhân sự phù hợp
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDailyStaff.map((row) => (
+                      <tr key={row.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-4 py-2.5 font-medium text-slate-900 flex items-center gap-2.5">
+                          <span className="w-6.5 h-6.5 rounded-md bg-slate-50 flex items-center justify-center border border-slate-200/80 shrink-0 overflow-hidden p-0.5 shadow-2xs">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src="/logo/Icon.png"
+                              alt={row.full_name}
+                              className="w-full h-full object-contain"
+                            />
+                          </span>
+                          <div>
+                            <p className="font-semibold text-slate-900 text-[13px] leading-tight">{row.full_name}</p>
+                            <p className="text-[11px] text-slate-500 font-mono leading-tight">ID: {row.id}</p>
                           </div>
                         </td>
-                      </tr>
-                    ) : filteredDailyStaff.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="text-center py-12 text-slate-400 italic font-medium">
-                          Không tìm thấy nhân sự phù hợp
+                        <td className="px-4 py-2.5 text-slate-700 text-[13px] font-normal">{row.branch_name}</td>
+                        <td className="px-4 py-2.5">
+                          <p className="font-medium text-slate-900 text-[13px] leading-tight">{row.department || "—"}</p>
+                          <p className="text-[11px] text-slate-500 font-normal leading-tight">{row.position || "—"}</p>
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          {row.check_in_time ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium text-slate-700 bg-slate-100/90 border border-slate-200/70 font-mono">
+                              {row.check_in_time}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 font-normal select-none">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          {row.hasReport && !row.isLate ? (
+                            <span className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-800 whitespace-nowrap">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              Đi làm
+                            </span>
+                          ) : row.hasReport && row.isLate ? (
+                            <span className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-800 whitespace-nowrap">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              Đi muộn
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-800 whitespace-nowrap">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                              Vắng mặt
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 font-normal text-slate-700 text-xs">
+                          {row.hasReport ? (
+                            <span className="text-slate-300 font-normal select-none">—</span>
+                          ) : editingStaffId === row.id ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editingReasonText}
+                              onChange={(e) => setEditingReasonText(e.target.value)}
+                              onBlur={() => handleSaveInlineReason(row.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleSaveInlineReason(row.id);
+                                } else if (e.key === "Escape") {
+                                  handleCancelInlineReason();
+                                }
+                              }}
+                              placeholder="Nhập lý do..."
+                              className="w-full bg-white border border-primary/40 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-primary/30 text-xs font-normal text-slate-900 placeholder:italic placeholder:font-normal placeholder:text-slate-400 shadow-2xs"
+                            />
+                          ) : row.absence_reason &&
+                            row.absence_reason !== "Vắng" &&
+                            row.absence_reason !== "Vắng mặt" &&
+                            row.absence_reason !== "Nghỉ" ? (
+                            <button
+                              type="button"
+                              onClick={() => startEditingReason(row)}
+                              title="Bấm để chỉnh sửa lý do"
+                              className="inline-flex items-center gap-1 text-slate-700 bg-slate-100 hover:bg-slate-200/70 px-2 py-0.5 rounded text-[11px] border border-slate-200 font-medium transition-colors cursor-pointer text-left group"
+                            >
+                              <span>{row.absence_reason}</span>
+                              <svg className="w-2.5 h-2.5 text-slate-400 group-hover:text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => startEditingReason(row)}
+                              title="Bấm để nhập lý do vắng"
+                              className="text-slate-500 italic text-[11px] font-normal hover:text-slate-700 transition-colors cursor-pointer text-left block"
+                            >
+                              Không phép / Chưa báo cáo
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          {selectedDayOffInfo.isOff ? (
+                            <span
+                              title={`${selectedDayOffInfo.reason || "Ngày nghỉ"} — Thao tác điểm danh bị vô hiệu hóa`}
+                              className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium text-slate-400 bg-slate-100 border border-slate-200/70 cursor-not-allowed select-none opacity-80 whitespace-nowrap"
+                            >
+                              Ngày nghỉ
+                            </span>
+                          ) : isCellToggling(row.id, selectedDate) ? (
+                            <span className="inline-flex items-center justify-center w-7 h-7">
+                              <svg className="animate-spin h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            </span>
+                          ) : row.hasReport && !row.isLate ? (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleMarkLateClick(row)}
+                                title="Đổi sang Đi muộn"
+                                aria-label="Đổi sang Đi muộn"
+                                className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-amber-700 hover:bg-amber-50/60 hover:border-amber-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkAbsentClick(row)}
+                                title="Báo Vắng mặt"
+                                aria-label="Báo Vắng mặt"
+                                className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-rose-700 hover:bg-rose-50/60 hover:border-rose-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          ) : row.hasReport && row.isLate ? (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleMarkPresentClick(row)}
+                                title="Đổi sang Đi làm đúng giờ"
+                                aria-label="Đổi sang Đi làm"
+                                className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-emerald-700 hover:bg-emerald-50/60 hover:border-emerald-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkAbsentClick(row)}
+                                title="Báo Vắng mặt"
+                                aria-label="Báo Vắng mặt"
+                                className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-rose-700 hover:bg-rose-50/60 hover:border-rose-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleMarkPresentClick(row)}
+                                title="Điểm danh Đi làm"
+                                aria-label="Điểm danh Đi làm"
+                                className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-emerald-700 hover:bg-emerald-50/60 hover:border-emerald-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkLateClick(row)}
+                                title="Điểm danh Đi muộn"
+                                aria-label="Điểm danh Đi muộn"
+                                className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-amber-700 hover:bg-amber-50/60 hover:border-amber-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
-                    ) : (
-                      filteredDailyStaff.map((row) => (
-                        <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-4 py-3 font-bold text-slate-900 flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-primary font-bold text-[11px] uppercase border border-slate-200">
-                              {row.full_name.split(" ").pop()?.substring(0, 2)}
-                            </span>
-                            <div>
-                              <p className="font-semibold text-slate-800">{row.full_name}</p>
-                              <p className="text-[10px] text-slate-400">ID: {row.id}</p>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-slate-600 font-semibold">{row.branch_name}</td>
-                          <td className="px-4 py-3">
-                            <p className="font-medium text-slate-800">{row.department || "—"}</p>
-                            <p className="text-[10px] text-slate-400 font-medium">{row.position || "—"}</p>
-                          </td>
-                          <td className="px-4 py-3 text-center text-slate-600 font-bold">
-                            {row.check_in_time ? (
-                              <span className="bg-slate-100 border border-slate-200 px-2 py-1 rounded text-[11px]">
-                                {row.check_in_time}
-                              </span>
-                            ) : (
-                              <span className="text-slate-300">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {row.hasReport && !row.isLate ? (
-                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-[4px] text-[10px] font-bold bg-transparent text-emerald-600 border border-emerald-600 min-w-[70px] text-center whitespace-nowrap">
-                                Đi làm
-                              </span>
-                            ) : row.hasReport && row.isLate ? (
-                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-[4px] text-[10px] font-bold bg-transparent text-amber-600 border border-amber-600 min-w-[70px] text-center whitespace-nowrap">
-                                Đi muộn
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-[4px] text-[10px] font-bold bg-transparent text-rose-600 border border-rose-600 min-w-[70px] text-center whitespace-nowrap">
-                                Vắng mặt
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-slate-700">
-                            {row.hasReport ? (
-                              <span className="text-slate-300">—</span>
-                            ) : editingStaffId === row.id ? (
-                              <input
-                                type="text"
-                                autoFocus
-                                value={editingReasonText}
-                                onChange={(e) => setEditingReasonText(e.target.value)}
-                                onBlur={() => handleSaveInlineReason(row.id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    handleSaveInlineReason(row.id);
-                                  } else if (e.key === "Escape") {
-                                    handleCancelInlineReason();
-                                  }
-                                }}
-                                placeholder="Nhập lý do..."
-                                className="w-full bg-transparent border-0 border-b-0 outline-none p-0 focus:ring-0 text-[11px] font-bold text-amber-600 focus:outline-none focus:border-0 placeholder:italic placeholder:font-normal placeholder:text-slate-400"
-                              />
-                            ) : row.absence_reason &&
-                              row.absence_reason !== "Vắng" &&
-                              row.absence_reason !== "Vắng mặt" &&
-                              row.absence_reason !== "Nghỉ" ? (
-                              <button
-                                onClick={() => startEditingReason(row)}
-                                className="inline-block text-amber-850 bg-amber-50 px-2 py-0.5 rounded-[4px] text-[10px] border border-amber-200 font-bold hover:bg-amber-100/60 transition-colors cursor-pointer text-left w-fit"
-                              >
-                                {row.absence_reason}
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => startEditingReason(row)}
-                                className="text-slate-400 italic font-medium hover:text-slate-600 transition-colors cursor-pointer text-left w-full block"
-                              >
-                                Không phép / Chưa báo cáo
-                              </button>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {selectedDayOffInfo.isOff ? (
-                              <span
-                                title={`${selectedDayOffInfo.reason || "Ngày nghỉ"} — Thao tác điểm danh bị vô hiệu hóa`}
-                                className="inline-flex items-center justify-center px-2.5 py-1 rounded-[4px] text-[10px] font-bold text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed select-none opacity-80 whitespace-nowrap"
-                              >
-                                Ngày nghỉ
-                              </span>
-                            ) : isCellToggling(row.id, selectedDate) ? (
-                              <span className="inline-flex items-center justify-center">
-                                <svg className="animate-spin h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                </svg>
-                              </span>
-                            ) : row.hasReport && !row.isLate ? (
-                              <div className="flex justify-center gap-1">
-                                <button
-                                  onClick={() => handleMarkLateClick(row)}
-                                  className="px-2 py-1 rounded-[4px] text-[10px] font-bold text-amber-700 border border-amber-600 bg-white hover:bg-amber-600 hover:text-white transition-all cursor-pointer shadow-xs whitespace-nowrap"
-                                >
-                                  Muộn
-                                </button>
-                                <button
-                                  onClick={() => handleMarkAbsentClick(row)}
-                                  className="px-2 py-1 rounded-[4px] text-[10px] font-bold text-rose-600 border border-rose-500 bg-white hover:bg-rose-600 hover:text-white transition-all cursor-pointer shadow-xs whitespace-nowrap"
-                                >
-                                  Vắng
-                                </button>
-                              </div>
-                            ) : row.hasReport && row.isLate ? (
-                              <div className="flex justify-center gap-1">
-                                <button
-                                  onClick={() => handleMarkPresentClick(row)}
-                                  className="px-2 py-1 rounded-[4px] text-[10px] font-bold text-emerald-600 border border-emerald-600 bg-white hover:bg-emerald-600 hover:text-white transition-all cursor-pointer shadow-xs whitespace-nowrap"
-                                >
-                                  Đi làm
-                                </button>
-                                <button
-                                  onClick={() => handleMarkAbsentClick(row)}
-                                  className="px-2 py-1 rounded-[4px] text-[10px] font-bold text-rose-600 border border-rose-500 bg-white hover:bg-rose-600 hover:text-white transition-all cursor-pointer shadow-xs whitespace-nowrap"
-                                >
-                                  Vắng
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex justify-center gap-1">
-                                <button
-                                  onClick={() => handleMarkPresentClick(row)}
-                                  className="px-2 py-1 rounded-[4px] text-[10px] font-bold text-emerald-600 border border-emerald-600 bg-white hover:bg-emerald-600 hover:text-white transition-all cursor-pointer shadow-xs whitespace-nowrap"
-                                >
-                                  Đi làm
-                                </button>
-                                <button
-                                  onClick={() => handleMarkLateClick(row)}
-                                  className="px-2 py-1 rounded-[4px] text-[10px] font-bold text-amber-700 border border-amber-600 bg-white hover:bg-amber-600 hover:text-white transition-all cursor-pointer shadow-xs whitespace-nowrap"
-                                >
-                                  Muộn
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         ) : (
-          <div className="p-4 space-y-4 flex flex-col h-full min-h-0">
+          <div className="flex flex-col min-h-0 h-full">
             {errorMonthly && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs font-semibold">
+              <div className="mx-4 mt-3 bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2 rounded-md text-xs font-semibold">
                 {errorMonthly}
               </div>
             )}
 
             {loadingMonthly && !monthlyData ? (
               <div className="flex flex-col items-center justify-center py-20 space-y-3">
-                <svg className="animate-spin h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                <span className="text-xs text-slate-500 font-medium">Đang kết xuất dữ liệu bảng công...</span>
+                <span className="text-xs text-slate-400 font-medium">Đang kết xuất dữ liệu bảng công...</span>
               </div>
             ) : monthlyData ? (
-              <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm flex flex-col min-h-0 flex-1">
-                {/* Stats Summary inside the table wrapper */}
-                <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700">
-                    Bảng công tháng {formatMonthLabel(selectedMonth)} (Tổng số: {filteredMonthlyStaff.length} người · {workingDaysInMonth.length} ngày làm việc)
+              <div className="flex flex-col min-h-0 flex-1">
+                {/* Stats Summary strip */}
+                <div className="bg-slate-50/80 px-4 py-2 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+                  <span className="font-semibold text-slate-800 text-[11px] uppercase tracking-wider">
+                    {formatMonthLabel(selectedMonth)} · <span className="text-slate-500 font-normal normal-case">{filteredMonthlyStaff.length} nhân sự ({workingDaysInMonth.length} ngày làm việc)</span>
                   </span>
-                  <span className="text-[10px] text-slate-400 italic">
-                    Ký hiệu: <strong className="text-emerald-600 font-black bg-transparent border border-emerald-600 px-1.5 py-0.5 rounded">x</strong> = Đi làm · <strong className="text-amber-600 font-black bg-transparent border border-amber-600 px-1.5 py-0.5 rounded">M</strong> = Đi muộn · <strong className="text-rose-600 font-black bg-transparent border border-rose-600 px-1.5 py-0.5 rounded">P</strong> = Nghỉ phép · <strong className="text-rose-600 font-black bg-transparent border border-rose-600 px-1.5 py-0.5 rounded">V</strong> = Vắng không phép · <strong className="text-slate-400 font-bold">•</strong> = Ngày tương lai · <strong className="text-slate-400 font-bold">—</strong> = Ngày nghỉ (UI Disable)
-                  </span>
+                  <div className="flex items-center flex-wrap gap-2 text-[11px] text-slate-500">
+                    <span className="inline-flex items-center gap-1"><strong className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-200/70 px-1 rounded">x</strong> Đi làm</span>
+                    <span className="inline-flex items-center gap-1"><strong className="text-amber-700 font-bold bg-amber-50 border border-amber-200/70 px-1 rounded">M</strong> Đi muộn</span>
+                    <span className="inline-flex items-center gap-1"><strong className="text-rose-700 font-bold bg-rose-50 border border-rose-200/70 px-1 rounded">P</strong> Nghỉ phép</span>
+                    <span className="inline-flex items-center gap-1"><strong className="text-rose-700 font-bold bg-rose-50 border border-rose-200/70 px-1 rounded">V</strong> Vắng</span>
+                    <span className="inline-flex items-center gap-1 text-slate-400">• Tương lai</span>
+                    <span className="inline-flex items-center gap-1 text-slate-400">— Ngày nghỉ</span>
+                  </div>
                 </div>
 
                 {/* Timesheet Grid */}
                 <div className="overflow-auto flex-1 no-scrollbar">
                   <table className="w-full border-collapse text-left text-xs whitespace-nowrap table-fixed">
                     <thead className="sticky top-0 bg-white z-10">
-                      <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-bold uppercase tracking-wider text-[9px]">
-                        <th className="px-3 py-3 w-48 sticky left-0 bg-slate-50 z-20 border-r border-slate-100">Nhân viên</th>
-                        <th className="px-3 py-3 w-28 text-center">Chi nhánh</th>
-                        <th className="px-3 py-3 w-28 text-center">Bộ phận</th>
+                      <tr className="border-b border-slate-200/90 bg-slate-50/90 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                        <th className="px-3 py-2.5 w-48 sticky left-0 bg-slate-50/95 z-20 border-r border-slate-200/80">Nhân viên</th>
+                        <th className="px-3 py-2.5 w-28 text-center">Chi nhánh</th>
+                        <th className="px-3 py-2.5 w-28 text-center">Bộ phận</th>
                         {/* Day headers */}
                         {allDaysInSelectedMonth.map((day) => {
                           const dateStr = `${selectedMonth}-${String(day).padStart(2, "0")}`;
@@ -964,7 +1017,7 @@ export function AdminAttendancePanel({
                             <th
                               key={day}
                               title={dayOffInfo.reason}
-                              className={`px-1 py-1 text-center w-8 border-r border-slate-100 leading-tight ${
+                              className={`px-1 py-1.5 text-center w-8 border-r border-slate-200/70 leading-tight ${
                                 dayOffInfo.isOff
                                   ? "bg-slate-100/90 text-slate-500 font-bold"
                                   : isWeekend
@@ -972,39 +1025,44 @@ export function AdminAttendancePanel({
                                     : ""
                               }`}
                             >
-                              <div>{day}</div>
-                              <div className={`text-[8px] font-medium ${dayOffInfo.isOff ? "text-amber-700 font-bold" : "opacity-75"}`}>
+                              <div className="font-mono text-[11px]">{day}</div>
+                              <div className={`text-[8px] font-medium ${dayOffInfo.isOff ? "text-amber-700 font-bold" : "text-slate-400"}`}>
                                 {dayOffInfo.isWeeklyOff ? label : dayOffInfo.isOff ? "Nghỉ" : label}
                               </div>
                             </th>
                           );
                         })}
-                        <th className="px-3 py-3 w-20 text-center sticky right-0 bg-slate-50 z-20 border-l border-slate-100">Số công</th>
+                        <th className="px-3 py-2.5 w-20 text-center sticky right-0 bg-slate-50/95 z-20 border-l border-slate-200/80">Số công</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredMonthlyStaff.length === 0 ? (
                         <tr>
-                          <td colSpan={4 + allDaysInSelectedMonth.length} className="text-center py-10 text-slate-400 italic">
+                          <td colSpan={4 + allDaysInSelectedMonth.length} className="text-center py-12 text-slate-400 italic font-medium">
                             Không tìm thấy nhân sự phù hợp
                           </td>
                         </tr>
                       ) : (
                         filteredMonthlyStaff.map((row) => (
-                          <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
+                          <tr key={row.id} className="hover:bg-slate-50/70 transition-colors">
                             {/* Staff info sticky column */}
-                            <td className="px-3 py-2.5 font-semibold text-slate-800 sticky left-0 bg-white z-10 border-r border-slate-100 flex items-center gap-2">
-                              <span className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-primary font-bold text-[9px] uppercase border border-slate-200/50 shrink-0">
-                                {row.full_name.split(" ").pop()?.substring(0, 2)}
+                            <td className="px-3 py-2 font-medium text-slate-900 sticky left-0 bg-white z-10 border-r border-slate-200/80 flex items-center gap-2">
+                              <span className="w-6 h-6 rounded-md bg-slate-50 flex items-center justify-center border border-slate-200/80 shrink-0 overflow-hidden p-0.5 shadow-2xs">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src="/logo/Icon.png"
+                                  alt={row.full_name}
+                                  className="w-full h-full object-contain"
+                                />
                               </span>
                               <div className="truncate">
-                                <p className="font-semibold text-slate-800 text-[11px] truncate">{row.full_name}</p>
-                                <p className="text-[9px] text-slate-400 font-medium truncate">{row.position || "—"}</p>
+                                <p className="font-semibold text-slate-900 text-xs truncate leading-tight">{row.full_name}</p>
+                                <p className="text-[10px] text-slate-500 font-normal truncate leading-tight">{row.position || "—"}</p>
                               </div>
                             </td>
 
-                            <td className="px-3 py-2.5 text-center text-slate-500 font-medium truncate">{row.branch_name}</td>
-                            <td className="px-3 py-2.5 text-center text-slate-500 font-medium truncate">{row.department || "—"}</td>
+                            <td className="px-3 py-2 text-center text-slate-700 text-xs font-normal truncate">{row.branch_name}</td>
+                            <td className="px-3 py-2 text-center text-slate-700 text-xs font-normal truncate">{row.department || "—"}</td>
 
                             {/* Calendar columns */}
                             {allDaysInSelectedMonth.map((day) => {
@@ -1020,7 +1078,7 @@ export function AdminAttendancePanel({
                                   <td
                                     key={day}
                                     title={`${dayOffInfo.reason || "Ngày nghỉ"} — Vô hiệu hóa điểm danh`}
-                                    className="px-1 py-2.5 text-center border-r border-slate-100 text-[10px] bg-slate-100/60 text-slate-300 font-bold select-none cursor-not-allowed"
+                                    className="px-1 py-2 text-center border-r border-slate-100 text-[10px] bg-slate-100/60 text-slate-300 font-bold select-none cursor-not-allowed"
                                   >
                                     <span className="block w-full text-center text-slate-300 select-none font-normal">—</span>
                                   </td>
@@ -1028,7 +1086,7 @@ export function AdminAttendancePanel({
                               }
 
                               const isFuture = dateStr > todayStr;
-                              let cellClass = "px-1 py-2.5 text-center border-r border-slate-100 text-[10px] font-bold cursor-pointer transition-all select-none ";
+                              let cellClass = "px-1 py-2 text-center border-r border-slate-100 text-xs font-bold cursor-pointer transition-all select-none ";
                               
                               if (isCellTogglingMonthly) {
                                 cellClass += "hover:bg-primary/5";
@@ -1062,12 +1120,12 @@ export function AdminAttendancePanel({
                                     <span className="text-slate-200 block w-full text-center hover:text-slate-400">•</span>
                                   ) : att?.hasReport ? (
                                     att.isLate ? (
-                                      <span className="text-amber-600 font-extrabold block w-full text-center">M</span>
+                                      <span className="text-amber-600 font-bold block w-full text-center">M</span>
                                     ) : (
-                                      <span className="text-emerald-600 font-extrabold block w-full text-center">x</span>
+                                      <span className="text-emerald-600 font-bold block w-full text-center">x</span>
                                     )
                                   ) : (
-                                    <span className="text-rose-600 font-extrabold block w-full text-center font-black">
+                                    <span className="text-rose-600 font-bold block w-full text-center">
                                       {att?.absenceReason ? "P" : "V"}
                                     </span>
                                   )}
@@ -1076,7 +1134,7 @@ export function AdminAttendancePanel({
                             })}
 
                             {/* Total days present sticky column */}
-                            <td className="px-3 py-2.5 text-center font-black text-primary sticky right-0 bg-white z-10 border-l border-slate-100 text-[11px]">
+                            <td className="px-3 py-2 text-center font-bold text-slate-900 sticky right-0 bg-white z-10 border-l border-slate-200/80 text-xs font-mono">
                               {getStaffPresentCount(row)}
                             </td>
                           </tr>
@@ -1087,7 +1145,7 @@ export function AdminAttendancePanel({
                 </div>
               </div>
             ) : (
-              <div className="text-center py-20 text-slate-400 italic">
+              <div className="text-center py-20 text-slate-400 italic font-medium">
                 Chưa có dữ liệu cho tháng này. Vui lòng thử chọn tháng khác.
               </div>
             )}
@@ -1115,110 +1173,123 @@ export function AdminAttendancePanel({
 
       {/* Manual Status Toggling Modal */}
       {reasonModalOpen && reasonModalData && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print animate-fade-in">
-          <div className="bg-white border border-slate-100 shadow-2xl rounded-2xl p-5 max-w-sm w-full flex flex-col animate-slide-in space-y-4">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 no-print animate-fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-4 sm:p-4.5 max-w-[340px] w-full flex flex-col animate-slide-in space-y-3.5">
+            {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div>
-                <h3 className="font-bold text-slate-800 text-sm">Cập nhật điểm danh</h3>
-                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                  {reasonModalData.staffName} · Ngày {reasonModalData.dateStr.split("-").reverse().join("/")}
+              <div className="min-w-0 pr-2">
+                <h3 className="font-semibold text-slate-900 text-sm leading-tight">Cập nhật điểm danh</h3>
+                <p className="text-xs text-slate-500 font-normal leading-tight mt-0.5 truncate">
+                  {reasonModalData.staffName} · Ngày {formatDateButtonLabel(reasonModalData.dateStr)}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setReasonModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                className="w-7 h-7 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer shrink-0"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Status selection */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Trạng thái</label>
-              <div className="grid grid-cols-3 gap-1.5">
+            {/* Segmented Status Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wider block">Trạng thái</label>
+              <div className="p-0.5 bg-slate-100 rounded-md border border-slate-200/70 grid grid-cols-3 gap-1">
                 <button
                   type="button"
                   onClick={() => {
                     setReasonModalData(prev => prev ? { ...prev, currentStatus: "present" } : null);
                   }}
-                  className={`py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                  className={`h-8.5 rounded text-xs transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
                     reasonModalData.currentStatus === "present"
-                      ? "bg-emerald-600 text-white border-emerald-700 shadow-sm"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                      ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900 font-medium"
                   }`}
                 >
-                  Đi làm
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  <span>Đi làm</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setReasonModalData(prev => prev ? { ...prev, currentStatus: "late" } : null);
                   }}
-                  className={`py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                  className={`h-8.5 rounded text-xs transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
                     reasonModalData.currentStatus === "late"
-                      ? "bg-amber-500 text-white border-amber-600 shadow-sm"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                      ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900 font-medium"
                   }`}
                 >
-                  Đi muộn
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                  <span>Đi muộn</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setReasonModalData(prev => prev ? { ...prev, currentStatus: "absent" } : null);
                   }}
-                  className={`py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                  className={`h-8.5 rounded text-xs transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
                     reasonModalData.currentStatus === "absent"
-                      ? "bg-rose-600 text-white border-rose-700 shadow-sm"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                      ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900 font-medium"
                   }`}
                 >
-                  Vắng
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                  <span>Vắng</span>
                 </button>
               </div>
             </div>
 
             {/* Absence reason selection if marked absent */}
             {reasonModalData.currentStatus === "absent" && (
-              <div className="space-y-2.5 animate-fade-in">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Lý do vắng</label>
+              <div className="space-y-2 animate-fade-in">
+                <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wider block">Lý do vắng</label>
                 <input
                   type="text"
-                  placeholder="Nhập lý do vắng (vd: Ốm, Việc riêng, Có phép...)"
+                  placeholder="Nhập lý do vắng..."
                   value={absenceReasonInput}
                   onChange={(e) => setAbsenceReasonInput(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-primary/25 text-xs font-semibold text-slate-800"
+                  className="w-full h-9 px-3 rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-primary/25 text-xs text-slate-900 placeholder:text-slate-400 shadow-2xs"
                 />
-                {/* Quick Suggestions */}
+                {/* Quick Preset Chips */}
                 <div className="flex flex-wrap gap-1.5">
-                  {["Nghỉ phép", "Ốm", "Việc riêng", "Không lý do"].map((sug) => (
-                    <button
-                      key={sug}
-                      type="button"
-                      onClick={() => setAbsenceReasonInput(sug === "Không lý do" ? "" : sug)}
-                      className="px-2 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 text-[10px] font-bold text-slate-600 rounded-md transition-colors cursor-pointer"
-                    >
-                      {sug}
-                    </button>
-                  ))}
+                  {["Nghỉ phép", "Ốm", "Việc riêng", "Không lý do"].map((sug) => {
+                    const isSelected = sug === "Không lý do" ? absenceReasonInput === "" : absenceReasonInput === sug;
+                    return (
+                      <button
+                        key={sug}
+                        type="button"
+                        onClick={() => setAbsenceReasonInput(sug === "Không lý do" ? "" : sug)}
+                        className={`h-7 px-2.5 rounded-md text-xs font-medium transition-colors cursor-pointer border ${
+                          isSelected
+                            ? "bg-slate-900 text-white border-slate-900 shadow-2xs font-semibold"
+                            : "bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-slate-100 hover:text-slate-800"
+                        }`}
+                      >
+                        {sug}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            {/* Footer Actions */}
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setReasonModalOpen(false)}
-                className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-bold px-4 py-2 rounded-lg text-xs transition-colors cursor-pointer"
+                className="h-9 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium px-3.5 rounded-md text-xs transition-colors cursor-pointer shadow-2xs"
               >
                 Hủy
               </button>
               <button
                 type="button"
                 onClick={handleSaveAttendanceModal}
-                className="bg-primary text-white hover:bg-primary-hover font-bold px-5 py-2 rounded-lg text-xs transition-colors cursor-pointer shadow-sm"
+                className="h-9 bg-primary text-white hover:bg-primary-hover font-semibold px-4 rounded-md text-xs transition-colors cursor-pointer shadow-2xs"
               >
                 Lưu thay đổi
               </button>

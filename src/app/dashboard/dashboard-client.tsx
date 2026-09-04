@@ -195,72 +195,74 @@ export default function DashboardClient({
 
   const header = (
     <header
-      className={`${glassPanel} px-3 py-2 flex items-center justify-between shrink-0 no-print`}
+      className="bg-white rounded-xl border border-slate-200 px-4 py-2 flex items-center justify-between shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.03)] no-print"
     >
-      <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex items-center gap-3 min-w-0">
         <Image
           src="/logo/hatico_logo.png"
           alt="Hatico Logo"
-          width={160}
-          height={70}
+          width={150}
+          height={65}
           priority
-          className="h-10 sm:h-11 w-auto max-w-[160px] object-contain object-left shrink-0"
+          className="h-8 sm:h-8.5 w-auto max-w-[140px] object-contain object-left shrink-0"
         />
-        <div className="border-l border-slate-300/80 pl-2.5 min-w-0">
+        <div className="border-l border-slate-200 pl-3 min-w-0">
           <LiveClock />
         </div>
       </div>
 
       <div className="flex items-center gap-3">
         <div className="text-right text-[11px] leading-tight hidden sm:block">
-          <p className="font-bold text-slate-900">{profile.full_name}</p>
-          <p className="text-slate-600">
+          <p className="font-semibold text-slate-900 text-xs">{profile.full_name}</p>
+          <p className="text-slate-500 text-[11px] mt-0.5">
             {profile.department?.name}
             {profile.department?.branch &&
-              ` - ${profile.department.branch.name}`}
+              ` · ${profile.department.branch.name}`}
           </p>
         </div>
 
-        <button
-          onClick={handleReload}
-          disabled={isPending}
-          title="Tải lại dữ liệu"
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-primary hover:bg-white/60 disabled:opacity-50 transition-colors cursor-pointer"
-        >
-          <svg
-            className={`w-4 h-4 ${isPending ? "animate-spin" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+          <button
+            onClick={handleReload}
+            disabled={isPending}
+            title="Tải lại dữ liệu"
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 disabled:opacity-50 transition-colors cursor-pointer"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </button>
+            <svg
+              className={`w-3.5 h-3.5 ${isPending ? "animate-spin" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
 
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1 text-slate-700 hover:text-rose-600 text-xs font-bold transition-colors cursor-pointer"
-        >
-          <svg
-            className="w-3.5 h-3.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 text-slate-600 hover:text-rose-600 px-2.5 py-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-rose-50/60 hover:border-rose-200 text-xs font-medium transition-colors cursor-pointer"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M17 16l4-4m0 0l-4-4m4 4H7"
-            />
-          </svg>
-          Thoát
-        </button>
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 16l4-4m0 0l-4-4m4 4H7"
+              />
+            </svg>
+            <span>Thoát</span>
+          </button>
+        </div>
       </div>
     </header>
   );

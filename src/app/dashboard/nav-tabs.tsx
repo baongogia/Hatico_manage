@@ -64,9 +64,7 @@ export function NavTabs<T extends string>({
       ref={tablistRef}
       role="tablist"
       aria-label={ariaLabel}
-      className={`relative flex items-center gap-3 sm:gap-5 border-b shrink-0 overflow-x-auto no-scrollbar ${
-        isGlass ? "border-white/25" : "border-slate-200/70"
-      } ${className}`}
+      className={`relative flex items-center gap-4 sm:gap-6 border-b border-slate-200 shrink-0 overflow-x-auto no-scrollbar ${className}`}
     >
       {options.map((opt) => (
         <button
@@ -79,14 +77,10 @@ export function NavTabs<T extends string>({
           aria-selected={value === opt.value}
           disabled={disabled}
           onClick={() => onChange(opt.value)}
-          className={`pb-2 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer touch-manipulation whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed shrink-0 ${
+          className={`pb-2.5 pt-0.5 text-xs sm:text-[13px] transition-colors cursor-pointer touch-manipulation whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed shrink-0 ${
             value === opt.value
-              ? isGlass
-                ? "text-white"
-                : "text-primary"
-              : isGlass
-                ? "text-white/55 hover:text-white/80"
-                : "text-slate-500 hover:text-slate-700"
+              ? "text-slate-900 font-semibold"
+              : "text-slate-500 hover:text-slate-900 font-medium"
           }`}
         >
           <span className="sm:hidden">{opt.shortLabel ?? opt.label}</span>
@@ -95,9 +89,7 @@ export function NavTabs<T extends string>({
       ))}
       <span
         aria-hidden
-        className={`pointer-events-none absolute bottom-0 h-0.5 rounded-full transition-[left,width] duration-300 ease-out ${
-          isGlass ? "bg-white" : "bg-primary"
-        }`}
+        className="pointer-events-none absolute bottom-0 h-0.5 bg-primary rounded-full transition-[left,width] duration-200 ease-out"
         style={{ left: indicator.left, width: indicator.width }}
       />
     </div>

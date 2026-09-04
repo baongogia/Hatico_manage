@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 export const adminControlClass =
-  "h-10 bg-slate-50 hover:bg-slate-100 px-3 rounded-lg text-xs font-semibold border border-slate-200/80 touch-manipulation transition-colors";
+  "h-9 bg-white hover:bg-slate-50 px-3 rounded-md text-xs font-medium text-slate-700 border border-slate-200 touch-manipulation transition-colors shadow-2xs";
 
 type AdminSelectOption = {
   value: string;

@@ -12,10 +12,18 @@ type PageBackgroundProps = {
 };
 
 function PageBackground({ url = DEFAULT_BG_URL, variant = "app" }: PageBackgroundProps) {
-  const overlayClass =
-    variant === "login"
-      ? "from-slate-900/25 via-slate-900/45 to-slate-900/65"
-      : "from-slate-900/35 via-slate-900/50 to-slate-900/65";
+  if (variant === "app") {
+    return (
+      <div
+        className="fixed inset-0 z-0 overflow-hidden bg-slate-100/90 pointer-events-none no-print"
+        aria-hidden
+      >
+        <div className="absolute inset-0 bg-[#f8fafc]" />
+      </div>
+    );
+  }
+
+  const overlayClass = "from-slate-900/25 via-slate-900/45 to-slate-900/65";
 
   return (
     <div
@@ -35,7 +43,7 @@ function PageBackground({ url = DEFAULT_BG_URL, variant = "app" }: PageBackgroun
         src={url}
         alt=""
         fill
-        priority={variant === "login"}
+        priority
         className="object-cover"
       />
       <div className={`absolute inset-0 bg-gradient-to-b ${overlayClass}`} />

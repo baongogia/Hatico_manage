@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   getMarketingReports,
@@ -14,46 +13,14 @@ import type {
   MarketingEventEntry,
   CallReportPeriod,
 } from "@/lib/report-data";
-import { layoutGap, layoutPad } from "@/lib/glass-styles";
-import { DEFAULT_BG_URL } from "./page-background";
 import AdminSelect from "./admin-select";
 import { downloadMarketingReportExcel } from "@/lib/marketing-report-export";
 import { MarketingExcelPreviewModal } from "./marketing-excel-preview-modal";
-import DatePickerModal from "./date-picker-modal";
-
-const TRAILER_TYPE_OPTIONS = [
-  { value: "", label: "—" },
-  { value: "Ben", label: "Ben" },
-  { value: "Lồng", label: "Lồng" },
-  { value: "Sàn", label: "Sàn" },
-  { value: "Téc", label: "Téc" },
-  { value: "Siêu trường", label: "Siêu trường" },
-  { value: "Lửng", label: "Lửng" },
-  { value: "Xương", label: "Xương" },
-];
-
-const PERIOD_TABS = [
-  { value: "week" as const, label: "1 tuần" },
-  { value: "month" as const, label: "1 tháng" },
-  { value: "all" as const, label: "Tất cả" },
-];
-
-const PLATFORM_OPTIONS = [
-  { value: "Tiktok", label: "Tiktok" },
-  { value: "Facebook", label: "Facebook" },
-  { value: "Youtube", label: "Youtube" },
-  { value: "Website", label: "Website" },
-];
-
-const STATUS_OPTIONS = [
-  { value: "completed", label: "Hoàn thành" },
-  { value: "in_progress", label: "Đang tiến hành" },
-  { value: "pending", label: "Chờ duyệt" },
-];
+import DatePickerModal, { formatDateButtonLabel } from "./date-picker-modal";
 
 const TikTokIcon = (
   <svg
-    className="w-3.5 h-3.5 fill-current"
+    className="w-4 h-4 fill-current shrink-0"
     viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
   >
@@ -63,7 +30,7 @@ const TikTokIcon = (
 
 const FacebookIcon = (
   <svg
-    className="w-3.5 h-3.5 fill-current"
+    className="w-4 h-4 fill-current shrink-0"
     viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
   >
@@ -73,7 +40,7 @@ const FacebookIcon = (
 
 const YouTubeIcon = (
   <svg
-    className="w-3.5 h-3.5 fill-current"
+    className="w-4 h-4 fill-current shrink-0"
     viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
   >
@@ -83,7 +50,7 @@ const YouTubeIcon = (
 
 const WebsiteIcon = (
   <svg
-    className="w-3.5 h-3.5 fill-current"
+    className="w-4 h-4 fill-current shrink-0"
     viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
   >
@@ -91,19 +58,12 @@ const WebsiteIcon = (
   </svg>
 );
 
-const cellInput =
-  "w-full min-w-[4.5rem] min-h-[2rem] px-2 py-1.5 text-xs text-slate-900 bg-white border border-slate-200/80 rounded focus:outline-none focus:ring-2 focus:ring-primary/35 focus:border-primary/50";
-
-const mobileFormInput =
-  "input-compact w-full h-7 px-2 text-slate-900 bg-white border border-slate-200/70 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/40 placeholder:text-slate-400";
-
-const toolbarBtn =
-  "inline-flex items-center justify-center shrink-0 h-8 sm:h-9 px-2.5 sm:px-3 rounded-[6px] text-[10px] sm:text-xs font-bold touch-manipulation transition-colors cursor-pointer";
-
-type MobilePostFormState = Omit<MarketingPostEntry, "type"> & {
-  report_date: string;
-};
-type MobileEventFormState = Omit<MarketingEventEntry, "type">;
+const VIEW_OPTIONS = [
+  { value: ">1k", label: ">1k" },
+  { value: ">2k", label: ">2k" },
+  { value: ">5k view", label: ">5k view" },
+  { value: "> 10k view", label: "> 10k view" },
+];
 
 type EditablePostRow = MarketingPostRow & { rowId: string };
 type EditableEventRow = MarketingEventRow & { rowId: string };
@@ -129,38 +89,11 @@ function toEditableEventRows(events: MarketingEventRow[]): EditableEventRow[] {
 function togglePlatform(currentPlatforms: string, platformToToggle: string) {
   const list = currentPlatforms.split(", ").filter(Boolean);
   if (list.includes(platformToToggle)) {
-    return list.filter((p) => p !== platformToToggle).join(", ");
+    const remaining = list.filter((p) => p !== platformToToggle);
+    return remaining.length > 0 ? remaining.join(", ") : platformToToggle;
   } else {
     return [...list, platformToToggle].join(", ");
   }
-}
-
-function emptyMobilePostForm(): MobilePostFormState {
-  return {
-    platform: "Tiktok",
-    title: "",
-    link: "",
-    views: "",
-    likes: "",
-    comments: "",
-    shares: "",
-    status: "completed",
-    report_date: new Date().toISOString().split("T")[0],
-  };
-}
-
-function emptyMobileEventForm(): MobileEventFormState {
-  return {
-    event_name: "",
-    event_date: new Date().toISOString().split("T")[0],
-    trailer_type: "",
-    qty: "",
-    location: "",
-    budget: "",
-    attendees: "",
-    outcome: "",
-    status: "completed",
-  };
 }
 
 function newEmptyPostRow(todayStr: string): EditablePostRow {
@@ -180,31 +113,14 @@ function newEmptyPostRow(todayStr: string): EditablePostRow {
   };
 }
 
-function newEmptyEventRow(todayStr: string): EditableEventRow {
-  return {
-    type: "marketing_event",
-    rowId: `new-event-${crypto.randomUUID()}`,
-    report_id: "",
-    report_date: todayStr,
-    event_name: "",
-    event_date: todayStr,
-    trailer_type: "",
-    qty: "",
-    location: "",
-    budget: "",
-    attendees: "",
-    outcome: "",
-    status: "completed",
-  };
-}
-
 export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = useMemo(() => {
+    return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
+  }, []);
   const isAdmin = profile.role === "admin";
 
-  const [period, setPeriod] = useState<CallReportPeriod>("all");
+  const [period] = useState<CallReportPeriod>("all");
   const [selectedStaffId, setSelectedStaffId] = useState<string>(profile.id);
-  const [activeSubTab, setActiveSubTab] = useState<"posts" | "events">("posts");
 
   const [posts, setPosts] = useState<EditablePostRow[]>([]);
   const [events, setEvents] = useState<EditableEventRow[]>([]);
@@ -216,6 +132,8 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     return `${yyyy}-${mm}`;
   });
   const [filterPlatform, setFilterPlatform] = useState<string>("all");
+
+  const [editingRowIds, setEditingRowIds] = useState<Set<string>>(new Set());
 
   const monthOptions = useMemo(() => {
     const options = [{ value: "all", label: "Tất cả các tháng" }];
@@ -261,42 +179,14 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     });
   }, [posts, filterMonth, filterPlatform]);
 
-  const displayedEvents = useMemo(() => {
-    return events.filter((event) => {
-      if (filterMonth !== "all") {
-        if (!event.event_date.startsWith(filterMonth)) return false;
-      }
-      return true;
-    });
-  }, [events, filterMonth]);
-
   const [marketingStaff, setMarketingStaff] = useState<
     { id: string; full_name: string }[]
   >([]);
 
-  const [loadedPostDates, setLoadedPostDates] = useState<Set<string>>(
-    new Set(),
-  );
-  const [loadedEventDates, setLoadedEventDates] = useState<Set<string>>(
-    new Set(),
-  );
-
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
-  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
-
   const [errorMsg, setErrorMsg] = useState("");
-  const [mobilePostForm, setMobilePostForm] =
-    useState<MobilePostFormState>(emptyMobilePostForm);
-  const [mobileEventForm, setMobileEventForm] =
-    useState<MobileEventFormState>(emptyMobileEventForm);
-
-  const [editingPostRowId, setEditingPostRowId] = useState<string | null>(null);
-  const [editingEventRowId, setEditingEventRowId] = useState<string | null>(
-    null,
-  );
 
   const [activeDatePicker, setActiveDatePicker] = useState<{
-    type: "post" | "event" | "post-mobile" | "event-mobile";
     rowId: string;
     value: string;
   } | null>(null);
@@ -306,10 +196,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   const [showExcelPreview, setShowExcelPreview] = useState(false);
 
   const postTitleRefs = useRef<Map<string, HTMLInputElement>>(new Map());
-  const eventNameRefs = useRef<Map<string, HTMLInputElement>>(new Map());
-
-  const focusPostRowIdRef = useRef<string | null>(null);
-  const focusEventRowIdRef = useRef<string | null>(null);
   const dirtyDatesRef = useRef<Set<string>>(new Set());
 
   const latestPosts = useRef(posts);
@@ -319,26 +205,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     latestPosts.current = posts;
     latestEvents.current = events;
   }, [posts, events]);
-
-  useEffect(() => {
-    const pid = focusPostRowIdRef.current;
-    if (pid) {
-      focusPostRowIdRef.current = null;
-      requestAnimationFrame(() => {
-        postTitleRefs.current.get(pid)?.focus();
-      });
-    }
-  }, [posts]);
-
-  useEffect(() => {
-    const eid = focusEventRowIdRef.current;
-    if (eid) {
-      focusEventRowIdRef.current = null;
-      requestAnimationFrame(() => {
-        eventNameRefs.current.get(eid)?.focus();
-      });
-    }
-  }, [events]);
 
   const formatDateDisplay = (dateString: string) => {
     if (!dateString) return "";
@@ -355,7 +221,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       const savedPosts = toEditablePostRows(fetchedPosts);
       const unsaved = prev.filter((p) => {
         if (!p.rowId.startsWith("new-")) return false;
-        // Keep if completely empty
         if (
           !p.title.trim() &&
           !p.link.trim() &&
@@ -363,7 +228,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
           !p.likes.trim()
         )
           return true;
-        // Check if already saved
         const isSaved = savedPosts.some(
           (sp) =>
             sp.title === p.title &&
@@ -376,38 +240,12 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       return [...savedPosts, ...unsaved];
     });
 
-    setEvents((prev) => {
-      const savedEvents = toEditableEventRows(fetchedEvents);
-      const unsaved = prev.filter((e) => {
-        if (!e.rowId.startsWith("new-")) return false;
-        // Keep if completely empty
-        if (
-          !e.event_name.trim() &&
-          !e.location?.trim() &&
-          !e.budget.trim() &&
-          !e.qty?.trim()
-        )
-          return true;
-        // Check if already saved
-        const isSaved = savedEvents.some(
-          (se) =>
-            se.event_name === e.event_name &&
-            se.event_date === e.event_date &&
-            se.location === e.location &&
-            se.budget === e.budget,
-        );
-        return !isSaved;
-      });
-      return [...savedEvents, ...unsaved];
-    });
+    setEvents(toEditableEventRows(fetchedEvents));
 
-    setLoadedPostDates(new Set(fetchedPosts.map((p) => p.report_date)));
-    setLoadedEventDates(new Set(fetchedEvents.map((e) => e.report_date)));
     if (staffList) {
       setMarketingStaff(staffList);
     }
     setSelectedPosts(new Set());
-    setSelectedEvents(new Set());
     setErrorMsg("");
   };
 
@@ -427,11 +265,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     loadReports(period, selectedStaffId);
   }, []);
 
-  const handlePeriodChange = (value: CallReportPeriod) => {
-    setPeriod(value);
-    loadReports(value, selectedStaffId);
-  };
-
   const handleStaffChange = (value: string) => {
     setSelectedStaffId(value);
     loadReports(period, value);
@@ -443,7 +276,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     let youtube = 0;
     let website = 0;
     let views = 0;
-    let likes = 0;
     let tiktokViews = 0;
     let tiktokOver5k = 0;
     let tiktokOver10k = 0;
@@ -452,18 +284,18 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       if (!p.title.trim()) return;
 
       const rawViews = String(p.views || "").toLowerCase();
-      const v = rawViews.includes(">10k") || rawViews.includes("> 10k")
-        ? 10000
-        : (rawViews.includes(">5k") || rawViews.includes("> 5k")
+      const v =
+        rawViews.includes(">10k") || rawViews.includes("> 10k")
+          ? 10000
+          : rawViews.includes(">5k") || rawViews.includes("> 5k")
           ? 5000
-          : (rawViews.includes(">2k") || rawViews.includes("> 2k")
-            ? 2000
-            : (rawViews.includes(">1k") || rawViews.includes("> 1k")
-              ? 1000
-              : (parseInt(rawViews.replace(/[^0-9]/g, "")) || 0))));
-      const l = parseInt(p.likes.replace(/[^0-9]/g, "")) || 0;
+          : rawViews.includes(">2k") || rawViews.includes("> 2k")
+          ? 2000
+          : rawViews.includes(">1k") || rawViews.includes("> 1k")
+          ? 1000
+          : parseInt(rawViews.replace(/[^0-9]/g, "")) || 0;
+
       views += v;
-      likes += l;
 
       if (p.platform.includes("Tiktok")) {
         tiktok++;
@@ -483,35 +315,12 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       youtube,
       website,
       views,
-      likes,
       tiktokViews,
       tiktokOver5k,
       tiktokOver10k,
     };
   }, [displayedPosts]);
 
-  const eventMetrics = useMemo(() => {
-    let total = 0;
-    let budget = 0;
-    let attendees = 0;
-
-    displayedEvents.forEach((e) => {
-      if (!e.event_name.trim()) return;
-      total++;
-      const b = parseInt(e.budget.replace(/[^0-9]/g, "")) || 0;
-      const a = parseInt(e.attendees.replace(/[^0-9]/g, "")) || 0;
-      budget += b;
-      attendees += a;
-    });
-
-    return {
-      total,
-      budget,
-      attendees,
-    };
-  }, [displayedEvents]);
-
-  // Editing logic for Posts
   const updatePostRow = (
     rowId: string,
     field: keyof Omit<EditablePostRow, "type" | "rowId">,
@@ -545,10 +354,12 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   const handleAddPostRow = (dateStr?: string) => {
     const rowDate = dateStr || todayStr;
     const row = newEmptyPostRow(rowDate);
-    focusPostRowIdRef.current = row.rowId;
     dirtyDatesRef.current.add(rowDate);
     setPosts((prev) => [row, ...prev]);
-    setLoadedPostDates((prev) => new Set([...prev, rowDate]));
+    setEditingRowIds((prev) => new Set(prev).add(row.rowId));
+    requestAnimationFrame(() => {
+      postTitleRefs.current.get(row.rowId)?.focus();
+    });
   };
 
   const toggleSelectPost = (rowId: string) => {
@@ -568,144 +379,35 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     }
   };
 
-  // Editing logic for Events
-  const updateEventRow = (
-    rowId: string,
-    field: keyof Omit<MarketingEventEntry, "type">,
-    value: string,
-    shouldSave = false,
-  ) => {
-    setEvents((prev) => {
-      const rowToEdit = prev.find((r) => r.rowId === rowId);
-      if (rowToEdit) {
-        dirtyDatesRef.current.add(rowToEdit.event_date);
-        if (field === "event_date") dirtyDatesRef.current.add(value);
-      }
-
-      const next = prev.map((r) =>
-        r.rowId === rowId ? { ...r, [field]: value } : r,
-      );
-      if (shouldSave) {
-        const editedRow = next.find((r) => r.rowId === rowId);
-        if (editedRow && editedRow.event_name.trim()) {
-          setTimeout(() => {
-            startSave(async () => {
-              await persistReports(latestPosts.current, next, [], true);
-            });
-          }, 0);
-        }
-      }
-      return next;
+  const startEditRow = (rowId: string) => {
+    setEditingRowIds((prev) => new Set(prev).add(rowId));
+    requestAnimationFrame(() => {
+      postTitleRefs.current.get(rowId)?.focus();
     });
   };
 
-  const handleAddEventRow = (dateStr?: string) => {
-    const rowDate = dateStr || todayStr;
-    const row = newEmptyEventRow(rowDate);
-    focusEventRowIdRef.current = row.rowId;
-    dirtyDatesRef.current.add(rowDate);
-    setEvents((prev) => [row, ...prev]);
-    setLoadedEventDates((prev) => new Set([...prev, rowDate]));
-  };
-
-  const toggleSelectEvent = (rowId: string) => {
-    setSelectedEvents((prev) => {
+  const finishEditRow = (rowId: string) => {
+    setEditingRowIds((prev) => {
       const next = new Set(prev);
-      if (next.has(rowId)) next.delete(rowId);
-      else next.add(rowId);
+      next.delete(rowId);
       return next;
     });
-  };
-
-  const toggleSelectAllEvents = () => {
-    if (selectedEvents.size === displayedEvents.length) {
-      setSelectedEvents(new Set());
-    } else {
-      setSelectedEvents(new Set(displayedEvents.map((r) => r.rowId)));
+    const currentPosts = latestPosts.current;
+    const row = currentPosts.find((r) => r.rowId === rowId);
+    if (row && row.title.trim()) {
+      startSave(async () => {
+        await persistReports(currentPosts, latestEvents.current, [], true);
+      });
     }
   };
 
   const handleMarketingBlur = () => {
     const currentPosts = latestPosts.current;
-    const currentEvents = latestEvents.current;
-    const hasValidPosts = currentPosts.some((p) => p.title.trim());
-    const hasValidEvents = currentEvents.some((e) => e.event_name.trim());
-    if (hasValidPosts || hasValidEvents) {
+    if (currentPosts.some((p) => p.title.trim())) {
       startSave(async () => {
-        await persistReports(currentPosts, currentEvents, [], true);
+        await persistReports(currentPosts, latestEvents.current, [], true);
       });
     }
-  };
-
-  // Mobile Form submit helpers
-  const handleMobilePostSubmit = () => {
-    if (!mobilePostForm.title.trim()) {
-      setErrorMsg("Vui lòng nhập tiêu đề bài viết.");
-      return;
-    }
-    setErrorMsg("");
-
-    let nextPosts: EditablePostRow[];
-    if (editingPostRowId) {
-      const rowToEdit = posts.find((r) => r.rowId === editingPostRowId);
-      if (rowToEdit) {
-        dirtyDatesRef.current.add(rowToEdit.report_date);
-      }
-      dirtyDatesRef.current.add(mobilePostForm.report_date);
-      nextPosts = posts.map((r) =>
-        r.rowId === editingPostRowId ? { ...r, ...mobilePostForm } : r,
-      );
-    } else {
-      dirtyDatesRef.current.add(mobilePostForm.report_date);
-      const row: EditablePostRow = {
-        ...newEmptyPostRow(todayStr),
-        ...mobilePostForm,
-      };
-      nextPosts = [row, ...posts];
-      setLoadedPostDates((prev) => new Set([...prev, todayStr]));
-    }
-    setPosts(nextPosts);
-    setEditingPostRowId(null);
-    setMobilePostForm(emptyMobilePostForm());
-
-    startSave(async () => {
-      await persistReports(nextPosts, events);
-    });
-  };
-
-  const handleMobileEventSubmit = () => {
-    if (!mobileEventForm.event_name.trim()) {
-      setErrorMsg("Vui lòng nhập tên sự kiện.");
-      return;
-    }
-    setErrorMsg("");
-
-    let nextEvents: EditableEventRow[];
-    if (editingEventRowId) {
-      const rowToEdit = events.find((r) => r.rowId === editingEventRowId);
-      if (rowToEdit) {
-        dirtyDatesRef.current.add(rowToEdit.event_date);
-      }
-      dirtyDatesRef.current.add(mobileEventForm.event_date || todayStr);
-      nextEvents = events.map((r) =>
-        r.rowId === editingEventRowId ? { ...r, ...mobileEventForm } : r,
-      );
-    } else {
-      dirtyDatesRef.current.add(mobileEventForm.event_date || todayStr);
-      const row: EditableEventRow = {
-        ...newEmptyEventRow(mobileEventForm.event_date || todayStr),
-        ...mobileEventForm,
-      };
-      nextEvents = [row, ...events];
-      setLoadedEventDates((prev) => new Set([...prev, row.event_date]));
-    }
-    setEvents(nextEvents);
-    setEditingEventRowId(null);
-    setMobileEventForm(emptyMobileEventForm());
-
-    startSave(async () => {
-      await persistReports(posts, nextEvents);
-    });
   };
 
   const persistReports = async (
@@ -718,7 +420,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     const datesToSave = new Set(dirtyDatesRef.current);
     if (datesToSave.size === 0) return;
 
-    // Group items by date
     const byDate = new Map<
       string,
       {
@@ -727,18 +428,15 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       }
     >();
 
-    // Init dates
     datesToSave.forEach((d) => {
       byDate.set(d, { posts: [], events: [] });
     });
 
-    // Clear dirty set (if save fails, we add them back)
     dirtyDatesRef.current = new Set();
 
     currentPosts.forEach((post) => {
-      if (!datesToSave.has(post.report_date)) return;
-      if (!post.title.trim()) return;
-      const grp = byDate.get(post.report_date) || { posts: [], events: [] };
+      if (!datesToSave.has(post.report_date) || !post.title.trim()) return;
+      const grp = byDate.get(post.report_date)!;
       grp.posts.push({
         platform: post.platform,
         title: post.title.trim(),
@@ -749,13 +447,11 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         shares: post.shares.trim(),
         status: post.status,
       });
-      byDate.set(post.report_date, grp);
     });
 
     currentEvents.forEach((event) => {
-      if (!datesToSave.has(event.event_date)) return;
-      if (!event.event_name.trim()) return;
-      const grp = byDate.get(event.event_date) || { posts: [], events: [] };
+      if (!datesToSave.has(event.event_date) || !event.event_name.trim()) return;
+      const grp = byDate.get(event.event_date)!;
       grp.events.push({
         event_name: event.event_name.trim(),
         event_date: event.event_date.trim(),
@@ -767,17 +463,13 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         outcome: event.outcome.trim(),
         status: event.status,
       });
-      byDate.set(event.event_date, grp);
     });
 
-    const entries = [...datesToSave].map((date) => {
-      const grp = byDate.get(date) || { posts: [], events: [] };
-      return {
-        date,
-        posts: grp.posts,
-        events: grp.events,
-      };
-    });
+    const entries = [...datesToSave].map((date) => ({
+      date,
+      posts: byDate.get(date)!.posts,
+      events: byDate.get(date)!.events,
+    }));
 
     const result = await saveMarketingReportsBatch(
       entries,
@@ -785,7 +477,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     );
 
     if ("error" in result) {
-      // Re-add failed dates to dirty
       datesToSave.forEach((d) => dirtyDatesRef.current.add(d));
       setErrorMsg(result.error || "Không thể lưu báo cáo.");
       return;
@@ -793,22 +484,11 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
 
     if (!skipRefresh) {
       const refresh = await getMarketingReports(period, selectedStaffId);
-      if (!("error" in refresh)) {
-        applyFetched(refresh.posts, refresh.events);
-      }
+      if (!("error" in refresh)) applyFetched(refresh.posts, refresh.events);
     }
   };
 
-  const handleSave = () => {
-    setErrorMsg("");
-    startSave(async () => {
-      await persistReports(posts, events);
-    });
-  };
-
-  const handleExportExcel = () => {
-    setShowExcelPreview(true);
-  };
+  const handleExportExcel = () => setShowExcelPreview(true);
 
   const handleConfirmExportExcel = async () => {
     setShowExcelPreview(false);
@@ -817,59 +497,49 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         filterMonth === "all"
           ? "Tat_ca_cac_thang"
           : `Thang_${filterMonth.split("-")[1]}_${filterMonth.split("-")[0]}`;
-      const exportPosts = displayedPosts.filter((p) => p.title.trim());
-      const exportEvents = displayedEvents.filter((e) => e.event_name.trim());
-
       const staffLabel =
         selectedStaffId === "all"
           ? "Tat_ca_nhan_su"
           : marketingStaff.find((s) => s.id === selectedStaffId)?.full_name ||
             profile.full_name;
 
-      const branchLabel = profile.department?.branch
-        ? `${profile.department.name} - ${profile.department.branch.name}`
-        : profile.department?.name;
-
       await downloadMarketingReportExcel(
         `Bao_cao_marketing_${staffLabel.replace(/\s+/g, "_")}_${label}.xlsx`,
         {
           period,
-          staffName:
-            selectedStaffId === "all"
-              ? "Tất cả nhân sự"
-              : marketingStaff.find((s) => s.id === selectedStaffId)
-                  ?.full_name || profile.full_name,
-          branchName: branchLabel,
-          posts: exportPosts,
-          events: exportEvents,
+          staffName: staffLabel,
+          branchName: profile.department?.branch
+            ? `${profile.department.name} - ${profile.department.branch.name}`
+            : profile.department?.name,
+          posts: displayedPosts.filter((p) => p.title.trim()),
+          events: events.filter((e) => e.event_name.trim()),
         },
       );
     } catch (err) {
       console.error(err);
-      window.alert("Không xuất được Excel. Vui lòng thử lại.");
+      window.alert("Không xuất được Excel.");
     }
   };
 
   const handleDeleteSelected = () => {
-    if (selectedPosts.size > 0) {
-      const deletedDates = posts
-        .filter((r) => selectedPosts.has(r.rowId))
-        .map((r) => r.report_date);
-      const nextPosts = posts.filter((r) => !selectedPosts.has(r.rowId));
+    const deletedDates = posts
+      .filter((r) => selectedPosts.has(r.rowId))
+      .map((r) => r.report_date);
+    const nextPosts = posts.filter((r) => !selectedPosts.has(r.rowId));
 
-      if ([...selectedPosts].some((id) => id === editingPostRowId)) {
-        setEditingPostRowId(null);
-        setMobilePostForm(emptyMobilePostForm());
-      }
+    setEditingRowIds((prev) => {
+      const next = new Set(prev);
+      selectedPosts.forEach((id) => next.delete(id));
+      return next;
+    });
 
-      setPosts(nextPosts);
-      setSelectedPosts(new Set());
-      setErrorMsg("");
+    setPosts(nextPosts);
+    setSelectedPosts(new Set());
+    setErrorMsg("");
 
-      startSave(async () => {
-        await persistReports(nextPosts, events, deletedDates);
-      });
-    }
+    startSave(async () => {
+      await persistReports(nextPosts, events, deletedDates);
+    });
   };
 
   const conditionsMet = [
@@ -880,998 +550,630 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   const isKpiViewsPassed = conditionsMet >= 2;
 
   return (
-    <div
-      className={`no-print flex-1 min-h-0 flex flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/92 shadow-[0_8px_32px_rgba(15,45,89,0.08)] transition-opacity duration-200 relative ${
-        isPending ? "opacity-70 pointer-events-none" : "opacity-100"
-      }`}
-    >
-      {/* Saving Overlay */}
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative">
+      {/* Saving Overlay Indicator */}
       {isSaving && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-[2px] transition-all duration-300">
-          <div className="flex flex-col items-center justify-center gap-3 bg-white/90 shadow-2xl border border-primary/10 rounded-2xl p-6 transform scale-100 animate-in fade-in zoom-in-95 duration-200">
-            <div className="relative flex items-center justify-center w-12 h-12">
-              <svg
-                className="w-12 h-12 animate-spin text-primary/20"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                />
-              </svg>
-              <svg
-                className="w-12 h-12 animate-spin text-primary absolute left-0 top-0"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M12 2C6.47715 2 2 6.47715 2 12"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></div>
-              </div>
-            </div>
-            <p className="text-xs font-bold text-slate-700 uppercase tracking-widest animate-pulse">
-              Đang lưu...
-            </p>
-          </div>
+        <div className="absolute top-3 right-4 z-30 flex items-center gap-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-md shadow-lg backdrop-blur-xs animate-fade-in">
+          <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span>Đang lưu...</span>
         </div>
       )}
-      {/* Title Header */}
-      <div className="relative shrink-0 overflow-hidden border-b border-primary/30">
-        <Image
-          src={DEFAULT_BG_URL}
-          alt=""
-          fill
-          className="object-cover opacity-30"
-          aria-hidden
-        />
-        <div
-          className="absolute inset-0 bg-gradient-to-r from-primary via-primary to-primary-hover opacity-95"
-          aria-hidden
-        />
-        <div className={`relative ${layoutPad} flex flex-col ${layoutGap}`}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="text-xs font-bold text-white uppercase tracking-wider">
-                Báo cáo phòng Marketing
-              </h2>
-              <p className="text-[10px] text-white/70 mt-0.5 truncate">
-                {profile.full_name} · Phòng Marketing
-              </p>
-            </div>
-            <div className="shrink-0 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                disabled={isPending}
-                className="shrink-0 h-9 flex items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold text-primary bg-white hover:bg-white/90 border border-white/30 shadow-sm cursor-pointer touch-manipulation transition-colors disabled:opacity-60"
-              >
-                <svg
-                  className="w-4 h-4 shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                <span className="hidden sm:inline">Xuất Excel</span>
-                <span className="sm:hidden">Excel</span>
-              </button>
-            </div>
-          </div>
+
+      {/* Header Chrome (Compact & Quiet) */}
+      <div className="border-b border-slate-200/90 px-4 py-2.5 shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white">
+        <div className="min-w-0">
+          <h2 className="text-[13px] font-semibold text-slate-900 leading-tight">
+            Báo cáo phòng Marketing
+          </h2>
+          <p className="text-[11px] text-slate-500 leading-tight mt-0.5">
+            {profile.full_name} · Phòng Marketing
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && marketingStaff.length > 0 && (
+            <AdminSelect
+              value={selectedStaffId}
+              onChange={handleStaffChange}
+              className="w-40 sm:w-44"
+              options={[
+                { value: "all", label: "Tất cả nhân sự" },
+                ...marketingStaff.map((s) => ({
+                  value: s.id,
+                  label: s.full_name,
+                })),
+              ]}
+            />
+          )}
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={isPending}
+            className="h-9 flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 shadow-2xs cursor-pointer px-3.5 transition-colors disabled:opacity-60"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>Xuất Excel</span>
+          </button>
         </div>
       </div>
 
-      {/* Integrated Metrics & Filters Dashboard Panel */}
-      <div className={`shrink-0 ${layoutPad} pb-0`}>
-        <div className="flex flex-col gap-3 bg-slate-50 border border-slate-200/80 rounded-xl p-3 shadow-xs">
-          {/* Top Row: Metrics (split into 2 equal columns on medium+ screens) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Column 1: Hiệu suất Đăng bài */}
-            <div className="flex flex-col gap-1.5 justify-center">
-              <div className="flex justify-between items-center border-b border-slate-200/60 pb-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-extrabold text-primary uppercase tracking-wider">
-                    Đăng bài
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wide">
-                    KPI Tháng
-                  </span>
-                </div>
-                <span className="text-xs font-bold text-primary">
-                  {postMetrics.total}{" "}
-                  <span className="text-[10px] text-slate-400 font-semibold">
-                    / 65 bài
-                  </span>
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto min-h-0 bg-white flex flex-col">
+        {/* Metric Summary Strip (2 Compact Enterprise Metric Groups) */}
+        <div className="px-4 py-3 grid grid-cols-1 lg:grid-cols-2 gap-3 shrink-0">
+          {/* Group A: Sản lượng nội dung */}
+          <div className="bg-slate-50/70 rounded-lg p-2.5 sm:p-3 border border-slate-200/70 flex flex-col justify-between gap-2">
+            <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                  Sản lượng nội dung
+                </span>
+                <span className="text-[10px] font-medium text-slate-500 bg-slate-200/60 px-1.5 py-0.5 rounded">
+                  KPI Tháng
                 </span>
               </div>
-              <div className="grid grid-cols-5 gap-1 text-center">
-                <div>
-                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
-                    {postMetrics.tiktok}
-                    <span className="text-[8px] font-semibold text-slate-400">
-                      /30
-                    </span>
-                  </p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide">
-                    Tiktok
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
-                    {postMetrics.facebook}
-                    <span className="text-[8px] font-semibold text-slate-400">
-                      /25
-                    </span>
-                  </p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide">
-                    Facebook
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
-                    {postMetrics.youtube}
-                    <span className="text-[8px] font-semibold text-slate-400">
-                      /8
-                    </span>
-                  </p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide">
-                    Youtube
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
-                    {postMetrics.website}
-                    <span className="text-[8px] font-semibold text-slate-400">
-                      /2
-                    </span>
-                  </p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide">
-                    Website
-                  </p>
-                </div>
-                <div className="border-l border-slate-200/50">
-                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
-                    {postMetrics.views >= 1000
-                      ? `${(postMetrics.views / 1000).toFixed(1)}k`
-                      : postMetrics.views}
-                    <span className="text-[8px] font-semibold text-slate-400">
-                      /120k
-                    </span>
-                  </p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide">
-                    Xem
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Column 2: Hiệu quả view TikTok */}
-            <div className="flex flex-col gap-1.5 justify-center border-t md:border-t-0 md:border-l border-slate-200/60 pt-2.5 md:pt-0 md:pl-4">
-              <div className="flex justify-between items-center border-b border-slate-200/60 pb-1">
-                <span className="text-[10px] font-extrabold text-primary uppercase tracking-wider">
-                  Hiệu quả view TikTok
-                </span>
-                <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
-                  isKpiViewsPassed 
-                    ? "bg-emerald-100 text-emerald-800" 
-                    : "bg-slate-100 text-slate-600"
-                }`}>
-                  {isKpiViewsPassed ? "Đạt KPI" : `Đạt ${conditionsMet}/3`}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-1 text-center">
-                <div>
-                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
-                    {postMetrics.tiktokViews >= 1000 ? `${(postMetrics.tiktokViews / 1000).toFixed(1)}k` : postMetrics.tiktokViews}
-                    <span className="text-[8px] font-semibold text-slate-400">
-                      /60k
-                    </span>
-                  </p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide">
-                    Tổng View
-                  </p>
-                </div>
-                <div className="border-l border-r border-slate-200/50">
-                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
-                    {postMetrics.tiktokOver5k}
-                    <span className="text-[8px] font-semibold text-slate-400">
-                      /5
-                    </span>
-                  </p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide font-sans">
-                    Video &gt; 5k
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-extrabold text-primary flex items-baseline justify-center gap-0.5">
-                    {postMetrics.tiktokOver10k}
-                    <span className="text-[8px] font-semibold text-slate-400">
-                      /1
-                    </span>
-                  </p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wide font-sans">
-                    Video &gt; 10k
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Middle Row: Filters & Platform Selectors (flex container, full width) */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/50 pt-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <AdminSelect
-                compact
-                value={filterMonth}
-                onChange={(v) => {
-                  setFilterMonth(v);
-                }}
-                options={monthOptions}
-                className="w-40 shrink-0"
-              />
-              <span className="flex items-center justify-center h-8 px-2.5 rounded-[4px] text-[10px] font-extrabold bg-primary/10 text-primary border border-primary/15 whitespace-nowrap">
-                {`${displayedPosts.length} / ${posts.length} bài`}
+              <span className="text-xs font-bold text-slate-900 font-mono">
+                {postMetrics.total} <span className="text-[10px] text-slate-400 font-normal">/ 65 bài</span>
               </span>
             </div>
 
-            {/* Platform Selector Buttons */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setFilterPlatform("all")}
-                className={`px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                  filterPlatform === "all"
-                    ? "bg-primary border-primary text-white scale-[1.02] shadow-sm"
-                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                }`}
-              >
-                Tất cả
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterPlatform("Tiktok")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                  filterPlatform === "Tiktok"
-                    ? "bg-[#fe2c55]/10 border-[#fe2c55]/30 text-[#fe2c55] scale-[1.02] shadow-sm"
-                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                }`}
-              >
-                {TikTokIcon}
-                <span className="font-sans">TikTok</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterPlatform("Facebook")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                  filterPlatform === "Facebook"
-                    ? "bg-[#1877f2]/10 border-[#1877f2]/30 text-[#1877f2] scale-[1.02] shadow-sm"
-                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                }`}
-              >
-                {FacebookIcon}
-                <span className="font-sans">Facebook</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterPlatform("Youtube")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                  filterPlatform === "Youtube"
-                    ? "bg-[#ff0000]/10 border-[#ff0000]/30 text-[#ff0000] scale-[1.02] shadow-sm"
-                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                }`}
-              >
-                {YouTubeIcon}
-                <span className="font-sans">YouTube</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterPlatform("Website")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-bold border transition-all duration-200 cursor-pointer shadow-2xs ${
-                  filterPlatform === "Website"
-                    ? "bg-slate-700/10 border-slate-700/30 text-slate-800 scale-[1.02] shadow-sm"
-                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                }`}
-              >
-                {WebsiteIcon}
-                <span className="font-sans">Website</span>
-              </button>
+            <div className="grid grid-cols-5 gap-1 text-center divide-x divide-slate-200/60">
+              <div className="px-1">
+                <p className="text-xs font-bold text-slate-900 font-mono">
+                  {postMetrics.tiktok} <span className="text-[9px] text-slate-400 font-normal">/ 30</span>
+                </p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">TikTok</p>
+              </div>
+              <div className="px-1">
+                <p className="text-xs font-bold text-slate-900 font-mono">
+                  {postMetrics.facebook} <span className="text-[9px] text-slate-400 font-normal">/ 25</span>
+                </p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Facebook</p>
+              </div>
+              <div className="px-1">
+                <p className="text-xs font-bold text-slate-900 font-mono">
+                  {postMetrics.youtube} <span className="text-[9px] text-slate-400 font-normal">/ 8</span>
+                </p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">YouTube</p>
+              </div>
+              <div className="px-1">
+                <p className="text-xs font-bold text-slate-900 font-mono">
+                  {postMetrics.website} <span className="text-[9px] text-slate-400 font-normal">/ 2</span>
+                </p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Website</p>
+              </div>
+              <div className="px-1">
+                <p className="text-xs font-bold text-slate-900 font-mono">
+                  {postMetrics.views >= 1000 ? `${(postMetrics.views / 1000).toFixed(1)}k` : postMetrics.views}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">/ 120k</span>
+                </p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Lượt xem</p>
+              </div>
             </div>
           </div>
 
-          {/* Bottom Row: Horizontal Day Scroller (Spans Full Width, Only when month is active) */}
-          {filterMonth !== "all" && daysInMonth.length > 0 && (
-            <div className="border-t border-slate-200/50 pt-2 flex flex-col gap-1.5">
-              <div className="flex items-center gap-1 overflow-x-auto py-0.5 no-scrollbar scroll-smooth">
-                {daysInMonth.map((day) => {
-                  const dateStr = `${filterMonth}-${day.dayStr}`;
-                  const hasReport = posts.some(
-                    (p) => p.report_date === dateStr && p.title.trim(),
-                  );
+          {/* Group B: Hiệu quả TikTok */}
+          <div className="bg-slate-50/70 rounded-lg p-2.5 sm:p-3 border border-slate-200/70 flex flex-col justify-between gap-2">
+            <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+              <span className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                Hiệu quả view TikTok
+              </span>
+              <span
+                className={`text-[10px] font-medium px-2 py-0.5 rounded border ${
+                  isKpiViewsPassed
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200/70"
+                    : "bg-slate-100 text-slate-600 border-slate-200/70"
+                }`}
+              >
+                {isKpiViewsPassed ? "Đạt KPI" : `Đạt ${conditionsMet}/3 tiêu chí`}
+              </span>
+            </div>
 
-                  return (
-                    <button
-                      key={day.dayStr}
-                      type="button"
-                      onClick={() => handleAddPostRow(dateStr)}
-                      className={`relative shrink-0 flex flex-col items-center justify-center w-8 h-8 rounded-md border text-center transition-all cursor-pointer ${
-                        day.isWeekend
-                          ? "bg-amber-50/70 border-amber-200/80 text-amber-800 hover:bg-amber-100/80 hover:scale-105 shadow-sm"
-                          : "bg-white border-slate-200 text-slate-700 hover:border-primary/50 hover:bg-primary/5 hover:scale-105 shadow-sm"
-                      }`}
-                    >
-                      {hasReport && (
-                        <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-emerald-500 shadow-[0_0_2px_rgba(16,185,129,0.5)]" />
-                      )}
-                      <span
-                        className={`text-[7px] uppercase font-bold text-slate-400`}
-                      >
-                        {day.dayName}
-                      </span>
-                      <span className="text-[9px] font-extrabold">
-                        {day.label}
-                      </span>
-                    </button>
-                  );
-                })}
+            <div className="grid grid-cols-3 gap-1 text-center divide-x divide-slate-200/60">
+              <div className="px-1">
+                <p className="text-xs font-bold text-slate-900 font-mono">
+                  {postMetrics.tiktokViews >= 1000
+                    ? `${(postMetrics.tiktokViews / 1000).toFixed(1)}k`
+                    : postMetrics.tiktokViews}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">/ 60k</span>
+                </p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Tổng View</p>
+              </div>
+              <div className="px-1">
+                <p className="text-xs font-bold text-slate-900 font-mono">
+                  {postMetrics.tiktokOver5k} <span className="text-[9px] text-slate-400 font-normal">/ 5</span>
+                </p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Video &gt; 5k</p>
+              </div>
+              <div className="px-1">
+                <p className="text-xs font-bold text-slate-900 font-mono">
+                  {postMetrics.tiktokOver10k} <span className="text-[9px] text-slate-400 font-normal">/ 1</span>
+                </p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Video &gt; 10k</p>
               </div>
             </div>
-          )}
+          </div>
         </div>
-      </div>
 
-      {/* Toolbar / Actions & Filters */}
-      {(selectedPosts.size > 0 || errorMsg) && (
-        <div className={`shrink-0 ${layoutPad} flex flex-col gap-2 pt-3`}>
-          {selectedPosts.size > 0 && (
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={handleDeleteSelected}
-                disabled={isSaving}
-                className={`${toolbarBtn} text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-60`}
-              >
-                Xóa ({selectedPosts.size})
-              </button>
-            </div>
-          )}
+        {/* Toolbar & Filters (Month, Counter & Platform Selectors) */}
+        <div className="px-4 pb-2.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0 border-b border-slate-200/60">
+          <div className="flex flex-wrap items-center gap-2">
+            <AdminSelect
+              value={filterMonth}
+              onChange={setFilterMonth}
+              options={monthOptions}
+              className="w-40 sm:w-44"
+            />
+            <span className="h-9 px-3 rounded-md text-xs font-medium text-slate-600 bg-slate-100/90 border border-slate-200/70 flex items-center shadow-2xs">
+              {displayedPosts.length} / {posts.length} bài
+            </span>
+          </div>
 
-          {errorMsg && (
-            <div className="bg-red-50 border border-red-200 text-red-700 p-2 rounded-lg text-[10px] sm:text-xs font-semibold">
-              {errorMsg}
-            </div>
-          )}
+          {/* Platform Filters */}
+          <div className="inline-flex items-center p-0.5 bg-slate-100 rounded-md border border-slate-200/60 self-start shrink-0">
+            <button
+              type="button"
+              onClick={() => setFilterPlatform("all")}
+              className={`px-3 py-1 rounded text-xs transition-all cursor-pointer ${
+                filterPlatform === "all"
+                  ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
+              }`}
+            >
+              Tất cả
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterPlatform("Tiktok")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs transition-all cursor-pointer ${
+                filterPlatform === "Tiktok"
+                  ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
+              }`}
+            >
+              {TikTokIcon}
+              <span>TikTok</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterPlatform("Facebook")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs transition-all cursor-pointer ${
+                filterPlatform === "Facebook"
+                  ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
+              }`}
+            >
+              {FacebookIcon}
+              <span>Facebook</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterPlatform("Youtube")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs transition-all cursor-pointer ${
+                filterPlatform === "Youtube"
+                  ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
+              }`}
+            >
+              {YouTubeIcon}
+              <span>YouTube</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterPlatform("Website")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs transition-all cursor-pointer ${
+                filterPlatform === "Website"
+                  ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
+              }`}
+            >
+              {WebsiteIcon}
+              <span>Website</span>
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Mobile Forms */}
-      <div className="sm:hidden rounded-xl border border-slate-200/70 bg-gradient-to-b from-slate-50/90 to-white p-2.5 space-y-2 shadow-sm">
-            <p className="text-[9px] font-bold text-primary uppercase tracking-wider">
-              {editingPostRowId ? "Chỉnh sửa bài đăng" : "Thêm bài đăng mới"}
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <label className="space-y-0.5 col-span-2">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Nền tảng
-                </span>
-                <div className="flex items-center gap-1.5 h-8 bg-slate-50/50 rounded border border-slate-200/40 px-1">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMobilePostForm((p) => ({
-                        ...p,
-                        platform: togglePlatform(p.platform, "Tiktok"),
-                      }))
-                    }
-                    title="Tiktok"
-                    className={`flex-1 flex justify-center items-center p-1 rounded transition-all cursor-pointer ${
-                      mobilePostForm.platform.includes("Tiktok")
-                        ? "bg-[#fe2c55]/10 text-[#fe2c55]"
-                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    {TikTokIcon}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMobilePostForm((p) => ({
-                        ...p,
-                        platform: togglePlatform(p.platform, "Facebook"),
-                      }))
-                    }
-                    title="Facebook"
-                    className={`flex-1 flex justify-center items-center p-1 rounded transition-all cursor-pointer ${
-                      mobilePostForm.platform.includes("Facebook")
-                        ? "bg-[#1877f2]/10 text-[#1877f2]"
-                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    {FacebookIcon}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMobilePostForm((p) => ({
-                        ...p,
-                        platform: togglePlatform(p.platform, "Youtube"),
-                      }))
-                    }
-                    title="Youtube"
-                    className={`flex-1 flex justify-center items-center p-1 rounded transition-all cursor-pointer ${
-                      mobilePostForm.platform.includes("Youtube")
-                        ? "bg-[#ff0000]/10 text-[#ff0000]"
-                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    {YouTubeIcon}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMobilePostForm((p) => ({
-                        ...p,
-                        platform: togglePlatform(p.platform, "Website"),
-                      }))
-                    }
-                    title="Website"
-                    className={`flex-1 flex justify-center items-center p-1 rounded transition-all cursor-pointer ${
-                      mobilePostForm.platform.includes("Website")
-                        ? "bg-slate-700/15 text-slate-800"
-                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    {WebsiteIcon}
-                  </button>
-                </div>
-              </label>
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Tiêu đề *
-                </span>
-                <input
-                  type="text"
-                  placeholder="Tiêu đề video/bài viết"
-                  value={mobilePostForm.title}
-                  onChange={(e) =>
-                    setMobilePostForm((p) => ({ ...p, title: e.target.value }))
-                  }
-                  className={mobileFormInput}
-                />
-              </label>
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Link bài đăng
-                </span>
-                <input
-                  type="text"
-                  placeholder="https://..."
-                  value={mobilePostForm.link}
-                  onChange={(e) =>
-                    setMobilePostForm((p) => ({ ...p, link: e.target.value }))
-                  }
-                  className={mobileFormInput}
-                />
-              </label>
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Lượt xem
-                </span>
-                <AdminSelect
-                  compact
-                  portal
-                  value={mobilePostForm.views}
-                  onChange={(val) =>
-                    setMobilePostForm((p) => ({ ...p, views: val }))
-                  }
-                  options={[
-                    {
-                      value: ">1k",
-                      label: (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-500 text-slate-700">
-                          &gt;1k
-                        </span>
-                      ),
-                    },
-                    {
-                      value: ">2k",
-                      label: (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-600 text-emerald-700">
-                          &gt;2k
-                        </span>
-                      ),
-                    },
-                    {
-                      value: ">5k view",
-                      label: (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-500 text-amber-700">
-                          &gt;5k view
-                        </span>
-                      ),
-                    },
-                    {
-                      value: "> 10k view",
-                      label: (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-purple-600 text-purple-700">
-                          &gt; 10k view
-                        </span>
-                      ),
-                    },
-                    ...(mobilePostForm.views &&
-                    mobilePostForm.views !== ">1k" &&
-                    mobilePostForm.views !== ">2k" &&
-                    mobilePostForm.views !== ">5k view" &&
-                    mobilePostForm.views !== "> 10k view"
-                      ? [
-                          {
-                            value: mobilePostForm.views,
-                            label: (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-500 text-slate-700">
-                                {mobilePostForm.views}
-                              </span>
-                            ),
-                          },
-                        ]
-                      : []),
-                  ]}
-                  placeholder=""
-                />
-              </label>
+        {/* Compact Calendar Day Strip */}
+        {filterMonth !== "all" && daysInMonth.length > 0 && (
+          <div className="px-4 py-2 border-b border-slate-200/60 bg-slate-50/50 shrink-0">
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+              {daysInMonth.map((day) => {
+                const dateStr = `${filterMonth}-${day.dayStr}`;
+                const hasReport = posts.some(
+                  (p) => p.report_date === dateStr && p.title.trim(),
+                );
 
-              <label className="space-y-0.5">
-                <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Ngày
+                return (
+                  <button
+                    key={day.dayStr}
+                    type="button"
+                    onClick={() => handleAddPostRow(dateStr)}
+                    title={`Ngày ${day.dayStr}/${filterMonth.split("-")[1]} - Bấm để thêm bài`}
+                    className={`relative shrink-0 flex flex-col items-center justify-center w-8 h-9 rounded-md border text-center transition-all cursor-pointer ${
+                      day.isWeekend
+                        ? "bg-slate-50 text-slate-400 border-slate-200/70 hover:bg-slate-100"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-[8px] uppercase font-medium text-slate-400 leading-none">
+                      {day.dayName}
+                    </span>
+                    <span className="text-[11px] font-semibold font-mono leading-none mt-1">
+                      {day.label}
+                    </span>
+                    {hasReport && (
+                      <span className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5 shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Action Bar (Delete Selected / Error) */}
+        {(selectedPosts.size > 0 || errorMsg) && (
+          <div className="px-4 py-2 flex items-center justify-between gap-2 bg-rose-50/70 border-b border-rose-200 shrink-0">
+            {selectedPosts.size > 0 ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-rose-800 font-medium">
+                  Đã chọn <strong>{selectedPosts.size}</strong> bài đăng
                 </span>
                 <button
                   type="button"
-                  onClick={() =>
-                    setActiveDatePicker({
-                      type: "post-mobile",
-                      rowId: "",
-                      value: mobilePostForm.report_date,
-                    })
-                  }
-                  className="flex items-center justify-between px-2 h-7 text-[10px] text-slate-800 bg-white border border-slate-200/80 rounded hover:bg-slate-50 focus:outline-none focus:ring-1 focus:ring-primary/30 w-full"
+                  onClick={handleDeleteSelected}
+                  disabled={isSaving}
+                  className="h-7 px-2.5 rounded text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer"
                 >
-                  <span className="font-sans font-medium">
-                    {formatDateDisplay(mobilePostForm.report_date)}
-                  </span>
-                  <svg
-                    className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
+                  Xóa bài đã chọn
                 </button>
-              </label>
-            </div>
-            <div className="flex gap-1.5 pt-0.5">
-              <button
-                type="button"
-                onClick={handleMobilePostSubmit}
-                className="flex-1 h-7 rounded-md text-[10px] font-bold text-white bg-primary hover:bg-primary-hover cursor-pointer touch-manipulation transition-colors shadow-sm"
-              >
-                {editingPostRowId ? "Cập nhật" : "Thêm bài"}
-              </button>
-              {editingPostRowId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingPostRowId(null);
-                    setMobilePostForm(emptyMobilePostForm());
-                  }}
-                  className="h-7 px-2.5 rounded-md text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer touch-manipulation transition-colors"
-                >
-                  Hủy
-                </button>
-              )}
-            </div>
-      </div>
+              </div>
+            ) : null}
 
-      {/* Main Table view */}
-      <div className={`flex-1 min-h-0 overflow-auto ${layoutPad} pt-3`}>
-            {/* Posts Table (Mobile version) */}
-            <div className="sm:hidden rounded-lg border border-slate-100 bg-white min-w-0">
-              <table className="w-full text-left text-[9px] leading-tight">
-                <thead>
-                  <tr className="bg-primary text-white">
-                    <th className="w-7 px-1 py-1.5 border border-white/15">
-                      <input
-                        type="checkbox"
-                        checked={
-                          posts.length > 0 &&
-                          selectedPosts.size === posts.length
-                        }
-                        onChange={toggleSelectAllPosts}
-                        className="w-3.5 h-3.5 accent-white cursor-pointer"
-                        aria-label="Chọn tất cả"
-                      />
-                    </th>
-                    <th className="px-1 py-1.5 font-bold border border-white/15">
-                      Nền tảng
-                    </th>
-                    <th className="px-1 py-1.5 font-bold border border-white/15">
-                      Tiêu đề
-                    </th>
-                    <th className="px-1 py-1.5 font-bold border border-white/15 w-11">
-                      Ngày
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {posts.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-2 py-6 text-center text-slate-400 italic border border-slate-200/80"
-                      >
-                        Chưa có dòng bài đăng — điền form phía trên
-                      </td>
-                    </tr>
-                  ) : (
-                    posts.map((row, i) => (
-                      <tr
-                        key={row.rowId}
-                        onClick={() => {
-                          setMobilePostForm({
-                            platform: row.platform,
-                            title: row.title,
-                            link: row.link,
-                            views: row.views,
-                            likes: row.likes,
-                            comments: row.comments,
-                            shares: row.shares,
-                            status: row.status,
-                            report_date: row.report_date,
-                          });
-                          setEditingPostRowId(row.rowId);
-                          setErrorMsg("");
-                        }}
-                        className={`cursor-pointer ${
-                          i % 2 === 1 ? "bg-slate-50/60" : "bg-white"
-                        } ${
-                          editingPostRowId === row.rowId
-                            ? "ring-1 ring-inset ring-primary/30"
-                            : ""
-                        } ${selectedPosts.has(row.rowId) ? "bg-primary/5" : ""}`}
-                      >
-                        <td
-                          className="px-1 py-1 border border-slate-200/80 text-center"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedPosts.has(row.rowId)}
-                            onChange={() => toggleSelectPost(row.rowId)}
-                            className="w-3 h-3 accent-primary cursor-pointer"
-                            aria-label={`Chọn ${row.title || "bài đăng"}`}
-                          />
-                        </td>
-                        <td className="px-1 py-1 border border-slate-200/80 font-bold text-primary max-w-[3.5rem] truncate">
-                          {row.platform}
-                        </td>
-                        <td className="px-1 py-1 border border-slate-200/80 font-semibold text-slate-950 truncate max-w-[7rem]">
-                          {row.title || "—"}
-                        </td>
-                        <td className="px-1 py-1 border border-slate-200/80 text-slate-500 whitespace-nowrap">
-                          {formatDateDisplay(row.report_date).slice(0, 5)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {errorMsg && (
+              <span className="text-xs font-semibold text-rose-700">{errorMsg}</span>
+            )}
+          </div>
+        )}
 
-            {/* Posts Table (Desktop version) */}
-            <div className="hidden sm:block rounded-lg border border-slate-100 bg-white min-w-0 overflow-hidden">
-              <div className="overflow-x-auto overflow-y-visible">
-                <table className="w-full min-w-[850px] text-left text-xs">
-                  <thead>
-                    <tr className="bg-primary text-white">
-                      <th className="w-9 px-2 py-2 border border-white/15">
+        {/* Marketing Table List (Polished Enterprise View) */}
+        <div className="overflow-x-auto flex-1">
+          <table className="w-full border-collapse text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200/90 bg-slate-50/80 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                <th className="px-3 py-2.5 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={posts.length > 0 && selectedPosts.size === displayedPosts.length}
+                    onChange={toggleSelectAllPosts}
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-primary focus:ring-primary/20 cursor-pointer"
+                    aria-label="Chọn tất cả"
+                  />
+                </th>
+                <th className="px-3 py-2.5 w-20 text-center">Nền tảng</th>
+                <th className="px-4 py-2.5 min-w-[14rem]">Tiêu đề / Nội dung bài đăng</th>
+                <th className="px-4 py-2.5 min-w-[12rem]">Đường dẫn (Link)</th>
+                <th className="px-3 py-2.5 text-center w-28">Lượt xem</th>
+                <th className="px-3 py-2.5 text-center w-28">Ngày</th>
+                <th className="px-3 py-2.5 text-center w-24">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {isPending ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <svg className="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span className="text-slate-400 font-medium">Đang tải danh sách bài đăng...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : displayedPosts.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-slate-400 italic font-medium">
+                    Chưa có bài đăng nào trong khoảng thời gian này
+                  </td>
+                </tr>
+              ) : (
+                displayedPosts.map((row) => {
+                  const isEditing = editingRowIds.has(row.rowId) || !row.title.trim();
+                  const isSelected = selectedPosts.has(row.rowId);
+
+                  return (
+                    <tr
+                      key={row.rowId}
+                      className={`hover:bg-slate-50/70 transition-colors ${
+                        isSelected ? "bg-slate-50/90" : ""
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <td className="px-3 py-2.5 text-center">
                         <input
                           type="checkbox"
-                          checked={
-                            posts.length > 0 &&
-                            selectedPosts.size === posts.length
-                          }
-                          onChange={toggleSelectAllPosts}
-                          className="w-3.5 h-3.5 accent-white cursor-pointer"
-                          aria-label="Chọn tất cả"
+                          checked={isSelected}
+                          onChange={() => toggleSelectPost(row.rowId)}
+                          className="w-3.5 h-3.5 rounded border-slate-300 text-primary focus:ring-primary/20 cursor-pointer"
+                          aria-label={`Chọn ${row.title || "bài đăng"}`}
                         />
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-24">
-                        Nền tảng
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 min-w-[12rem]">
-                        Tiêu đề / Nội dung bài đăng
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 min-w-[11rem]">
-                        Đường dẫn (Link)
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-[115px]">
-                        Lượt xem
-                      </th>
-                      <th className="px-2 py-2 font-bold text-center border border-white/15 w-24">
-                        Ngày
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayedPosts.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-3 py-10 text-center text-slate-400 italic border border-slate-200/80"
-                        >
-                          Chưa có dòng bài đăng — bấm &quot;Thêm dòng&quot; để
-                          bắt đầu
-                        </td>
-                      </tr>
-                    ) : (
-                      displayedPosts.map((row, i) => (
-                        <tr
-                          key={row.rowId}
-                          className={`${
-                            i % 2 === 1 ? "bg-slate-50/60" : "bg-white"
-                          } ${
-                            selectedPosts.has(row.rowId)
-                              ? "ring-1 ring-inset ring-primary/25 bg-primary/2"
-                              : ""
-                          }`}
-                        >
-                          <td className="px-2 py-1 border border-slate-200/80 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedPosts.has(row.rowId)}
-                              onChange={() => toggleSelectPost(row.rowId)}
-                              className="w-3.5 h-3.5 accent-primary cursor-pointer"
-                              aria-label={`Chọn ${row.title || "dòng mới"}`}
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <div className="flex items-center justify-center gap-1.5 h-8 bg-slate-50/50 rounded border border-slate-200/40 px-1">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updatePostRow(
-                                    row.rowId,
-                                    "platform",
-                                    togglePlatform(row.platform, "Tiktok"),
-                                    true,
-                                  )
-                                }
-                                title="Tiktok"
-                                className={`p-1 rounded transition-all cursor-pointer ${
-                                  row.platform.includes("Tiktok")
-                                    ? "bg-[#fe2c55]/10 text-[#fe2c55] scale-110"
-                                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                                }`}
-                              >
-                                {TikTokIcon}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updatePostRow(
-                                    row.rowId,
-                                    "platform",
-                                    togglePlatform(row.platform, "Facebook"),
-                                    true,
-                                  )
-                                }
-                                title="Facebook"
-                                className={`p-1 rounded transition-all cursor-pointer ${
-                                  row.platform.includes("Facebook")
-                                    ? "bg-[#1877f2]/10 text-[#1877f2] scale-110"
-                                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                                }`}
-                              >
-                                {FacebookIcon}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updatePostRow(
-                                    row.rowId,
-                                    "platform",
-                                    togglePlatform(row.platform, "Youtube"),
-                                    true,
-                                  )
-                                }
-                                title="Youtube"
-                                className={`p-1 rounded transition-all cursor-pointer ${
-                                  row.platform.includes("Youtube")
-                                    ? "bg-[#ff0000]/10 text-[#ff0000] scale-110"
-                                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                                }`}
-                              >
-                                {YouTubeIcon}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updatePostRow(
-                                    row.rowId,
-                                    "platform",
-                                    togglePlatform(row.platform, "Website"),
-                                    true,
-                                  )
-                                }
-                                title="Website"
-                                className={`p-1 rounded transition-all cursor-pointer ${
-                                  row.platform.includes("Website")
-                                    ? "bg-slate-700/15 text-slate-800 scale-110"
-                                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                                }`}
-                              >
-                                {WebsiteIcon}
-                              </button>
-                            </div>
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <input
-                              ref={(el) => {
-                                if (el)
-                                  postTitleRefs.current.set(row.rowId, el);
-                                else postTitleRefs.current.delete(row.rowId);
-                              }}
-                              type="text"
-                              placeholder="Tiêu đề video/bài đăng *"
-                              value={row.title}
-                              onChange={(e) =>
-                                updatePostRow(
-                                  row.rowId,
-                                  "title",
-                                  e.target.value,
-                                )
-                              }
-                              onBlur={handleMarketingBlur}
-                              className={`${cellInput} font-semibold`}
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <input
-                              type="text"
-                              placeholder="Link liên kết"
-                              value={row.link}
-                              onChange={(e) =>
-                                updatePostRow(row.rowId, "link", e.target.value)
-                              }
-                              onBlur={handleMarketingBlur}
-                              className={cellInput}
-                            />
-                          </td>
-                          <td className="p-1 border border-slate-200/80">
-                            <AdminSelect
-                              compact
-                              portal
-                              value={row.views}
-                              onChange={(val) =>
-                                updatePostRow(
-                                  row.rowId,
-                                  "views",
-                                  val,
-                                  true,
-                                )
-                              }
-                              options={[
-                                {
-                                  value: ">1k",
-                                  label: (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-500 text-slate-700">
-                                      &gt;1k
-                                    </span>
-                                  ),
-                                },
-                                {
-                                  value: ">2k",
-                                  label: (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-600 text-emerald-700">
-                                      &gt;2k
-                                    </span>
-                                  ),
-                                },
-                                {
-                                  value: ">5k view",
-                                  label: (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-500 text-amber-700">
-                                      &gt;5k view
-                                    </span>
-                                  ),
-                                },
-                                {
-                                  value: "> 10k view",
-                                  label: (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-purple-600 text-purple-700">
-                                      &gt; 10k view
-                                    </span>
-                                  ),
-                                },
-                                ...(row.views &&
-                                row.views !== ">1k" &&
-                                row.views !== ">2k" &&
-                                row.views !== ">5k view" &&
-                                row.views !== "> 10k view"
-                                  ? [
-                                      {
-                                        value: row.views,
-                                        label: (
-                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-500 text-slate-700">
-                                            {row.views}
-                                          </span>
-                                        ),
-                                      },
-                                    ]
-                                  : []),
-                              ]}
-                              placeholder=""
-                            />
-                          </td>
+                      </td>
 
-                          <td className="p-1 border border-slate-200/80 text-center">
+                      {/* Nền tảng (Platform) */}
+                      <td className="px-3 py-2.5 text-center">
+                        {isEditing ? (
+                          <div className="flex items-center justify-center gap-1 bg-slate-50 rounded border border-slate-200 p-0.5">
                             <button
                               type="button"
                               onClick={() =>
-                                setActiveDatePicker({
-                                  type: "post",
-                                  rowId: row.rowId,
-                                  value: row.report_date,
-                                })
+                                updatePostRow(
+                                  row.rowId,
+                                  "platform",
+                                  togglePlatform(row.platform, "Tiktok"),
+                                  true,
+                                )
                               }
-                              className="flex items-center justify-between px-2 py-1.5 text-xs text-slate-800 bg-white border border-slate-200/80 rounded hover:bg-slate-50/80 hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-primary/30 w-full min-h-[2rem]"
+                              title="Tiktok"
+                              className={`p-1 rounded transition-colors cursor-pointer ${
+                                row.platform.includes("Tiktok")
+                                  ? "bg-[#fe2c55]/10 text-[#fe2c55]"
+                                  : "text-slate-400 hover:text-slate-600"
+                              }`}
                             >
-                              <span className="font-sans font-medium text-slate-700">
-                                {formatDateDisplay(row.report_date)}
-                              </span>
-                              <svg
-                                className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                />
+                              {TikTokIcon}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePostRow(
+                                  row.rowId,
+                                  "platform",
+                                  togglePlatform(row.platform, "Facebook"),
+                                  true,
+                                )
+                              }
+                              title="Facebook"
+                              className={`p-1 rounded transition-colors cursor-pointer ${
+                                row.platform.includes("Facebook")
+                                  ? "bg-[#1877f2]/10 text-[#1877f2]"
+                                  : "text-slate-400 hover:text-slate-600"
+                              }`}
+                            >
+                              {FacebookIcon}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePostRow(
+                                  row.rowId,
+                                  "platform",
+                                  togglePlatform(row.platform, "Youtube"),
+                                  true,
+                                )
+                              }
+                              title="Youtube"
+                              className={`p-1 rounded transition-colors cursor-pointer ${
+                                row.platform.includes("Youtube")
+                                  ? "bg-[#ff0000]/10 text-[#ff0000]"
+                                  : "text-slate-400 hover:text-slate-600"
+                              }`}
+                            >
+                              {YouTubeIcon}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePostRow(
+                                  row.rowId,
+                                  "platform",
+                                  togglePlatform(row.platform, "Website"),
+                                  true,
+                                )
+                              }
+                              title="Website"
+                              className={`p-1 rounded transition-colors cursor-pointer ${
+                                row.platform.includes("Website")
+                                  ? "bg-slate-700/15 text-slate-800"
+                                  : "text-slate-400 hover:text-slate-600"
+                              }`}
+                            >
+                              {WebsiteIcon}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1.5" title={row.platform}>
+                            {row.platform.includes("Tiktok") && (
+                              <span className="text-[#fe2c55] inline-flex items-center justify-center" title="TikTok">{TikTokIcon}</span>
+                            )}
+                            {row.platform.includes("Facebook") && (
+                              <span className="text-[#1877f2] inline-flex items-center justify-center" title="Facebook">{FacebookIcon}</span>
+                            )}
+                            {row.platform.includes("Youtube") && (
+                              <span className="text-[#ff0000] inline-flex items-center justify-center" title="YouTube">{YouTubeIcon}</span>
+                            )}
+                            {row.platform.includes("Website") && (
+                              <span className="text-slate-700 inline-flex items-center justify-center" title="Website">{WebsiteIcon}</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Tiêu đề / Nội dung */}
+                      <td className="px-4 py-2.5">
+                        {isEditing ? (
+                          <input
+                            ref={(el) => {
+                              if (el) postTitleRefs.current.set(row.rowId, el);
+                              else postTitleRefs.current.delete(row.rowId);
+                            }}
+                            type="text"
+                            placeholder="Nhập tiêu đề video/bài đăng..."
+                            value={row.title}
+                            onChange={(e) => updatePostRow(row.rowId, "title", e.target.value)}
+                            onBlur={handleMarketingBlur}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") finishEditRow(row.rowId);
+                            }}
+                            className="w-full h-8 px-2 text-xs font-semibold text-slate-900 bg-white border border-primary/40 rounded focus:outline-none focus:ring-1 focus:ring-primary/30 shadow-2xs"
+                          />
+                        ) : (
+                          <div
+                            onClick={() => startEditRow(row.rowId)}
+                            className="cursor-pointer group flex items-center justify-between gap-2"
+                            title="Bấm để chỉnh sửa"
+                          >
+                            <span className="font-semibold text-slate-900 text-[13px] leading-tight">
+                              {row.title || "—"}
+                            </span>
+                            <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Đường dẫn (Link) */}
+                      <td className="px-4 py-2.5">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            placeholder="https://..."
+                            value={row.link}
+                            onChange={(e) => updatePostRow(row.rowId, "link", e.target.value)}
+                            onBlur={handleMarketingBlur}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") finishEditRow(row.rowId);
+                            }}
+                            className="w-full h-8 px-2 text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-primary/30 font-mono shadow-2xs"
+                          />
+                        ) : row.link ? (
+                          <a
+                            href={row.link.startsWith("http") ? row.link : `https://${row.link}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px] truncate max-w-[220px]"
+                            title={row.link}
+                          >
+                            <span className="truncate">{row.link}</span>
+                            <svg className="w-3 h-3 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        ) : (
+                          <span className="text-slate-300 select-none font-normal">—</span>
+                        )}
+                      </td>
+
+                      {/* Lượt xem (Views) */}
+                      <td className="px-3 py-2.5 text-center">
+                        {isEditing ? (
+                          <AdminSelect
+                            compact
+                            value={row.views}
+                            onChange={(val) => updatePostRow(row.rowId, "views", val, true)}
+                            options={VIEW_OPTIONS}
+                            className="w-full"
+                          />
+                        ) : row.views ? (
+                          <span
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[11px] font-medium whitespace-nowrap border ${
+                              row.views.includes("> 10k") || row.views.includes(">10k")
+                                ? "bg-purple-50 text-purple-700 border-purple-200/70"
+                                : row.views.includes(">5k")
+                                ? "bg-amber-50 text-amber-700 border-amber-200/70"
+                                : row.views.includes(">2k")
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200/70"
+                                : "bg-slate-100 text-slate-700 border-slate-200/70"
+                            }`}
+                          >
+                            {row.views}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 select-none font-normal">—</span>
+                        )}
+                      </td>
+
+                      {/* Ngày */}
+                      <td className="px-3 py-2.5 text-center">
+                        {isEditing ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveDatePicker({
+                                rowId: row.rowId,
+                                value: row.report_date,
+                              })
+                            }
+                            className="w-full h-8 flex items-center justify-center gap-1.5 px-2 text-xs font-mono text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-50 cursor-pointer shadow-2xs"
+                          >
+                            <span>{formatDateButtonLabel(row.report_date)}</span>
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium text-slate-700 bg-slate-100/90 border border-slate-200/70 font-mono">
+                            {formatDateDisplay(row.report_date)}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Thao tác */}
+                      <td className="px-3 py-2.5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {isEditing ? (
+                            <button
+                              type="button"
+                              onClick={() => finishEditRow(row.rowId)}
+                              title="Hoàn tất chỉnh sửa"
+                              aria-label="Hoàn tất"
+                              className="w-7 h-7 inline-flex items-center justify-center rounded border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all cursor-pointer shadow-2xs"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M5 13l4 4L19 7" />
                               </svg>
                             </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => startEditRow(row.rowId)}
+                              title="Chỉnh sửa bài đăng"
+                              aria-label="Sửa"
+                              className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPosts(new Set([row.rowId]));
+                              handleDeleteSelected();
+                            }}
+                            title="Xóa bài đăng"
+                            aria-label="Xóa"
+                            className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-rose-700 hover:bg-rose-50/60 hover:border-rose-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <MarketingExcelPreviewModal
@@ -1891,7 +1193,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
             : profile.department?.name
         }
         posts={displayedPosts.filter((p) => p.title.trim())}
-        events={displayedEvents.filter((e) => e.event_name.trim())}
+        events={events.filter((e) => e.event_name.trim())}
       />
 
       {activeDatePicker && (
@@ -1900,25 +1202,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
           value={activeDatePicker.value}
           onClose={() => setActiveDatePicker(null)}
           onSelect={(newDate) => {
-            if (activeDatePicker.type === "post") {
-              updatePostRow(
-                activeDatePicker.rowId,
-                "report_date",
-                newDate,
-                true,
-              );
-            } else if (activeDatePicker.type === "event") {
-              updateEventRow(
-                activeDatePicker.rowId,
-                "event_date",
-                newDate,
-                true,
-              );
-            } else if (activeDatePicker.type === "post-mobile") {
-              setMobilePostForm((p) => ({ ...p, report_date: newDate }));
-            } else if (activeDatePicker.type === "event-mobile") {
-              setMobileEventForm((p) => ({ ...p, event_date: newDate }));
-            }
+            updatePostRow(activeDatePicker.rowId, "report_date", newDate, true);
             setActiveDatePicker(null);
           }}
         />

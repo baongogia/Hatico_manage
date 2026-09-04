@@ -1,6 +1,6 @@
-/** Shared glass styles — lighter blur on mobile for GPU */
+/** Shared clean surface styles for modern SaaS dashboard */
 export const glassPanel =
-  "rounded-2xl border border-white/70 bg-white/60 backdrop-blur-md sm:bg-white/55 sm:backdrop-blur-xl shadow-[0_8px_32px_rgba(15,45,89,0.1)] ring-1 ring-white/90";
+  "rounded-xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]";
 
 export const layoutGap = "gap-3";
-export const layoutPad = "p-3";
+export const layoutPad = "p-3 sm:p-4";
