@@ -168,7 +168,7 @@ export function AdminAttendancePanel({
           window.alert(res.error);
         } else if (res.staffUpdates) {
           res.staffUpdates.forEach((u) => commitStaffUpdate(u, selectedDate));
-          showToast(customSuccessMsg || `✅ Đã điểm danh thành công cho ${res.count} nhân sự`);
+          showToast(customSuccessMsg || `Đã điểm danh thành công cho ${res.count} nhân sự.`);
         }
       } catch (err) {
         console.error("Bulk check in failed:", err);
@@ -201,7 +201,7 @@ export function AdminAttendancePanel({
         handleExecuteBulkAttendance(
           staffToAutoCheckIn,
           autoAttendanceSettings.autoCheckInTime || undefined,
-          `⚡ Tự động điểm danh thành công cho ${staffToAutoCheckIn.length} nhân sự`,
+          `Tự động điểm danh thành công cho ${staffToAutoCheckIn.length} nhân sự.`,
         );
       }
     }
@@ -225,7 +225,7 @@ export function AdminAttendancePanel({
       (s) => selectedStaffIds.includes(s.id) && !s.hasReport,
     );
     if (staffToMark.length === 0) {
-      window.alert("Tất cả nhân sự trong danh sách đã được điểm danh trước đó!");
+      window.alert("Tất cả nhân sự trong danh sách đã được điểm danh trước đó.");
       return;
     }
 
@@ -234,7 +234,7 @@ export function AdminAttendancePanel({
       await handleExecuteBulkAttendance(
         staffToMark,
         autoAttendanceSettings.autoCheckInTime || undefined,
-        `⚡ Đã tự động điểm danh cho ${staffToMark.length} nhân sự`,
+        `Đã tự động điểm danh cho ${staffToMark.length} nhân sự.`,
       );
     } finally {
       setIsTriggeringAuto(false);
@@ -810,15 +810,15 @@ export function AdminAttendancePanel({
           >
             <div className="relative">
               <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {autoAttendanceSettings.enabled && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" />
               )}
             </div>
             <span className="hidden sm:inline">Cài đặt tự động</span>
             {autoAttendanceSettings.enabled && autoAttendanceSettings.staffIds.length > 0 && (
-              <span className="hidden md:inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="hidden md:inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                 {autoAttendanceSettings.staffIds.length}
               </span>
             )}
@@ -1384,12 +1384,15 @@ export function AdminAttendancePanel({
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-medium border border-slate-700 animate-slide-in">
+        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-3.5 py-2.5 rounded-lg shadow-xl flex items-center gap-2.5 text-xs font-normal border border-slate-800 animate-slide-in">
+          <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
           <span>{toastMessage}</span>
           <button
             type="button"
             onClick={() => setToastMessage(null)}
-            className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
+            className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer ml-1.5"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
