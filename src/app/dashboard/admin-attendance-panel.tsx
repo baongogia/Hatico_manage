@@ -9,21 +9,25 @@ import {
   AdminStaffRow,
   MonthlyAttendanceStaffRow,
   markStaffPresent,
+  markMultipleStaffPresent,
   markStaffAbsent,
   markStaffLate,
-  StaffAttendanceUpdate,
 } from "../actions";
 import {
   applyMonthlyAttendanceUpdate,
   applyStaffAttendanceUpdate,
   attendanceCellKey,
+  StaffAttendanceUpdate,
 } from "@/lib/admin-dashboard-utils";
 import { downloadAdminAttendanceExcel, downloadDailyAttendanceExcel } from "@/lib/attendance-export";
 import { useOffDaySettings } from "@/lib/off-day-settings";
+import { useAutoAttendanceSettings } from "@/lib/auto-attendance-settings";
 import DatePickerModal, { formatDateButtonLabel } from "./date-picker-modal";
 import AdminSelect, { adminControlClass } from "./admin-select";
 import { DailyAttendancePreviewModal, MonthlyAttendancePreviewModal } from "./attendance-preview-modal";
 import { OffDaySettingsModal } from "./off-day-settings-modal";
+import { AutoAttendanceSettingsModal } from "./auto-attendance-settings-modal";
+import { BulkAttendanceModal } from "./bulk-attendance-modal";
 
 type AdminAttendancePanelProps = {
   initialData: AdminDashboardData;
@@ -43,6 +47,20 @@ export function AdminAttendancePanel({
   const { settings: offDaySettings, updateSettings: updateOffDaySettings, isDateOff } = useOffDaySettings();
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const selectedDayOffInfo = useMemo(() => isDateOff(selectedDate), [isDateOff, selectedDate]);
+
+  // Auto Attendance State
+  const { settings: autoAttendanceSettings, updateSettings: updateAutoAttendanceSettings } = useAutoAttendanceSettings();
+  const [showAutoAttendanceModal, setShowAutoAttendanceModal] = useState(false);
+  const [showBulkAttendanceModal, setShowBulkAttendanceModal] = useState(false);
+  const [isTriggeringAuto, setIsTriggeringAuto] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 4000);
+  }, []);
 
   const todayStr = useMemo(() => {
     return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
@@ -99,6 +117,129 @@ export function AdminAttendancePanel({
     }
     onDataUpdate?.(dailyData);
   }, [dailyData, onDataUpdate]);
+
+  // Bulk execution helper
+  const handleExecuteBulkAttendance = useCallback(
+    async (
+      staffToMark: AdminStaffRow[],
+      customTime?: string,
+      customSuccessMsg?: string,
+    ) => {
+      if (staffToMark.length === 0) return;
+
+      const now = new Date();
+      const defaultTimeStr = now.toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Ho_Chi_Minh",
+      });
+      const checkInTimeStr = customTime || defaultTimeStr;
+
+      const targetIdSet = new Set(staffToMark.map((s) => s.id));
+      staffToMark.forEach((s) => addToggling(s.id, selectedDate));
+
+      const originalDailyData = dailyData;
+
+      // Optimistic daily update
+      setDailyData((prev) => ({
+        ...prev,
+        staff: prev.staff.map((s) =>
+          targetIdSet.has(s.id)
+            ? {
+                ...s,
+                hasReport: true,
+                isLate: false,
+                absence_reason: undefined,
+                check_in_time: checkInTimeStr,
+              }
+            : s,
+        ),
+      }));
+
+      try {
+        const payload = staffToMark.map((s) => ({
+          id: s.id,
+          profile_id: s.profile_id,
+          full_name: s.full_name,
+        }));
+        const res = await markMultipleStaffPresent(payload, selectedDate, customTime);
+        if ("error" in res && res.error) {
+          setDailyData(originalDailyData);
+          window.alert(res.error);
+        } else if (res.staffUpdates) {
+          res.staffUpdates.forEach((u) => commitStaffUpdate(u, selectedDate));
+          showToast(customSuccessMsg || `✅ Đã điểm danh thành công cho ${res.count} nhân sự`);
+        }
+      } catch (err) {
+        console.error("Bulk check in failed:", err);
+        setDailyData(originalDailyData);
+        window.alert("Có lỗi xảy ra khi điểm danh hàng loạt.");
+      } finally {
+        staffToMark.forEach((s) => removeToggling(s.id, selectedDate));
+      }
+    },
+    [dailyData, selectedDate, addToggling, removeToggling, commitStaffUpdate, showToast],
+  );
+
+  // Auto-attendance on initial load (runs only once per day for un-checked in selected staff)
+  const hasAutoRunTodayRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      subTab === "daily" &&
+      selectedDate === todayStr &&
+      !selectedDayOffInfo.isOff &&
+      autoAttendanceSettings.enabled &&
+      autoAttendanceSettings.staffIds.length > 0 &&
+      hasAutoRunTodayRef.current !== selectedDate
+    ) {
+      const staffToAutoCheckIn = dailyData.staff.filter(
+        (s) => autoAttendanceSettings.staffIds.includes(s.id) && !s.hasReport,
+      );
+
+      if (staffToAutoCheckIn.length > 0) {
+        hasAutoRunTodayRef.current = selectedDate;
+        handleExecuteBulkAttendance(
+          staffToAutoCheckIn,
+          autoAttendanceSettings.autoCheckInTime || undefined,
+          `⚡ Tự động điểm danh thành công cho ${staffToAutoCheckIn.length} nhân sự`,
+        );
+      }
+    }
+  }, [
+    selectedDate,
+    todayStr,
+    selectedDayOffInfo.isOff,
+    autoAttendanceSettings,
+    dailyData.staff,
+    subTab,
+    handleExecuteBulkAttendance,
+  ]);
+
+  // Manual Trigger for Auto Attendance in Modal
+  const handleTriggerAutoAttendanceNow = async (selectedStaffIds: number[]) => {
+    if (selectedDayOffInfo.isOff) {
+      window.alert(`Hôm nay là ${selectedDayOffInfo.reason || "ngày nghỉ"}. Không thể thực hiện điểm danh.`);
+      return;
+    }
+    const staffToMark = dailyData.staff.filter(
+      (s) => selectedStaffIds.includes(s.id) && !s.hasReport,
+    );
+    if (staffToMark.length === 0) {
+      window.alert("Tất cả nhân sự trong danh sách đã được điểm danh trước đó!");
+      return;
+    }
+
+    setIsTriggeringAuto(true);
+    try {
+      await handleExecuteBulkAttendance(
+        staffToMark,
+        autoAttendanceSettings.autoCheckInTime || undefined,
+        `⚡ Đã tự động điểm danh cho ${staffToMark.length} nhân sự`,
+      );
+    } finally {
+      setIsTriggeringAuto(false);
+    }
+  };
 
   // Inline editing of reasons
   const [editingStaffId, setEditingStaffId] = useState<number | null>(null);
@@ -581,6 +722,24 @@ export function AdminAttendancePanel({
                 <span className="truncate">{formatDateButtonLabel(selectedDate)}</span>
               </button>
 
+              {/* Bulk Attendance Button */}
+              <button
+                type="button"
+                disabled={selectedDayOffInfo.isOff}
+                onClick={() => setShowBulkAttendanceModal(true)}
+                title={selectedDayOffInfo.isOff ? "Ngày nghỉ không thể điểm danh" : "Điểm danh hàng loạt cho nhân sự"}
+                className={`h-9 flex items-center justify-center gap-1.5 rounded-md text-xs font-semibold text-white px-3.5 transition-colors shadow-2xs ${
+                  selectedDayOffInfo.isOff
+                    ? "bg-slate-300 border-slate-300 cursor-not-allowed opacity-60"
+                    : "bg-primary hover:bg-primary-hover border border-primary-hover cursor-pointer active:scale-95"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Điểm danh tất cả</span>
+              </button>
+
               <button
                 onClick={() => setShowDailyPreview(true)}
                 className="h-9 flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 shadow-2xs cursor-pointer px-3.5 transition-colors"
@@ -641,6 +800,29 @@ export function AdminAttendancePanel({
               })),
             ]}
           />
+
+          {/* Auto Attendance Settings Button */}
+          <button
+            type="button"
+            onClick={() => setShowAutoAttendanceModal(true)}
+            className="h-9 flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 shadow-2xs cursor-pointer px-3 transition-colors shrink-0"
+            title="Cài đặt điểm danh tự động cho nhân viên được chọn"
+          >
+            <div className="relative">
+              <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {autoAttendanceSettings.enabled && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+              )}
+            </div>
+            <span className="hidden sm:inline">Cài đặt tự động</span>
+            {autoAttendanceSettings.enabled && autoAttendanceSettings.staffIds.length > 0 && (
+              <span className="hidden md:inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                {autoAttendanceSettings.staffIds.length}
+              </span>
+            )}
+          </button>
 
           <button
             type="button"
@@ -1171,6 +1353,51 @@ export function AdminAttendancePanel({
         onSave={updateOffDaySettings}
       />
 
+      {/* Auto Attendance Settings Modal */}
+      <AutoAttendanceSettingsModal
+        open={showAutoAttendanceModal}
+        onClose={() => setShowAutoAttendanceModal(false)}
+        settings={autoAttendanceSettings}
+        onSave={updateAutoAttendanceSettings}
+        staffList={dailyData.staff}
+        branchList={dailyData.branchStats.map((b) => ({
+          branchId: b.branchId,
+          branchName: b.branchName,
+        }))}
+        onTriggerNow={handleTriggerAutoAttendanceNow}
+        isTriggering={isTriggeringAuto}
+      />
+
+      {/* Bulk Attendance Modal */}
+      <BulkAttendanceModal
+        open={showBulkAttendanceModal}
+        onClose={() => setShowBulkAttendanceModal(false)}
+        selectedDate={selectedDate}
+        staffList={dailyData.staff}
+        currentBranchFilter={branchFilter}
+        branchList={dailyData.branchStats.map((b) => ({
+          branchId: b.branchId,
+          branchName: b.branchName,
+        }))}
+        onConfirm={handleExecuteBulkAttendance}
+      />
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-medium border border-slate-700 animate-slide-in">
+          <span>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Manual Status Toggling Modal */}
       {reasonModalOpen && reasonModalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 no-print animate-fade-in">
@@ -1323,3 +1550,4 @@ export function AdminAttendancePanel({
     </div>
   );
 }
+

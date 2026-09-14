@@ -77,7 +77,7 @@ export interface AdminStaffRow {
   absence_reason?: string;
 }
 
-export type { StaffAttendanceUpdate } from "@/lib/admin-dashboard-utils";
+import type { StaffAttendanceUpdate } from "@/lib/admin-dashboard-utils";
 
 export interface AdminDashboardData {
   profile: Profile;
@@ -1318,6 +1318,73 @@ export async function markStaffPresent(
     },
   };
 }
+
+export async function markMultipleStaffPresent(
+  staffList: { id: number; profile_id?: string; full_name?: string }[],
+  date: string,
+  customCheckInTime?: string,
+) {
+  const profile = await getSessionUser();
+  if (!profile || profile.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+
+  if (!staffList || staffList.length === 0) {
+    return { success: true as const, count: 0, staffUpdates: [] };
+  }
+
+  const staffUpdates: StaffAttendanceUpdate[] = [];
+  const chunkSize = 10;
+
+  for (let i = 0; i < staffList.length; i += chunkSize) {
+    const chunk = staffList.slice(i, i + chunkSize);
+    await Promise.all(
+      chunk.map(async (staff) => {
+        try {
+          let targetUserId = staff.profile_id;
+          if (!targetUserId) {
+            const provisionResult = await getOrCreateProfileForStaff(staff.id);
+            if (!("error" in provisionResult) && provisionResult.profileId) {
+              targetUserId = provisionResult.profileId;
+            }
+          }
+
+          if (!targetUserId) return;
+
+          const result = await saveDailyReportCore(profile, {
+            date,
+            tasksData: [],
+            status: "submitted",
+            userId: targetUserId,
+            skipRevalidate: true,
+          });
+
+          if (!("error" in result) && result.report) {
+            const checkInTime = customCheckInTime || formatCheckInTimeFromIso(result.report.created_at);
+            staffUpdates.push({
+              staffId: staff.id,
+              hasReport: true,
+              tasks: [],
+              report_id: result.report.id,
+              check_in_time: checkInTime,
+              absence_reason: undefined,
+              profile_id: targetUserId,
+            });
+          }
+        } catch (e) {
+          console.error(`Error marking staff ${staff.id} present in batch:`, e);
+        }
+      })
+    );
+  }
+
+  return {
+    success: true as const,
+    count: staffUpdates.length,
+    staffUpdates,
+  };
+}
+
 
 export async function deleteDailyReport(
   staffId: number,
