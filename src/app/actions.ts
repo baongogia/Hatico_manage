@@ -1385,6 +1385,222 @@ export async function markMultipleStaffPresent(
   };
 }
 
+export interface MarkMonthlyAttendanceBulkParams {
+  monthStr: string;
+  branchScope?: string;
+  staffIds?: number[];
+  customCheckInTime?: string;
+  skipOffDays?: boolean;
+  offDates?: string[];
+  overwriteExisting?: boolean;
+}
+
+export async function markMonthlyAttendanceBulk(
+  params: MarkMonthlyAttendanceBulkParams,
+) {
+  const profile = await getSessionUser();
+  if (!profile || profile.role !== "admin") {
+    return { error: "Unauthorized" };
+  }
+
+  const {
+    monthStr,
+    branchScope = "all",
+    staffIds,
+    customCheckInTime,
+    skipOffDays = true,
+    offDates = [],
+    overwriteExisting = false,
+  } = params;
+
+  if (!monthStr || !/^\d{4}-\d{2}$/.test(monthStr)) {
+    return { error: "Định dạng tháng không hợp lệ (YYYY-MM)" };
+  }
+
+  const supabase = createServiceClient();
+
+  // 1. Fetch staff staging list
+  let query = supabase
+    .from("staff_staging")
+    .select("id, full_name, branch_id");
+
+  if (branchScope && branchScope !== "all") {
+    query = query.eq("branch_id", branchScope);
+  }
+  if (staffIds && staffIds.length > 0) {
+    query = query.in("id", staffIds);
+  }
+
+  const { data: staffList, error: staffErr } = await query;
+  if (staffErr || !staffList || staffList.length === 0) {
+    return { error: "Không tìm thấy nhân sự phù hợp để điểm danh" };
+  }
+
+  // 2. Resolve or provision profile IDs for all staff
+  const { data: allProfiles } = await supabase
+    .from("profiles")
+    .select("id, full_name");
+
+  const profileMap = new Map(
+    (allProfiles || []).map((p) => [p.full_name.trim().toLowerCase(), p.id]),
+  );
+
+  const staffWithProfiles: { staffId: number; profileId: string; fullName: string }[] = [];
+
+  for (const staff of staffList) {
+    let pId = profileMap.get(staff.full_name.trim().toLowerCase());
+    if (!pId) {
+      const provisionResult = await getOrCreateProfileForStaff(staff.id);
+      if (!("error" in provisionResult) && provisionResult.profileId) {
+        pId = provisionResult.profileId;
+        profileMap.set(staff.full_name.trim().toLowerCase(), pId);
+      }
+    }
+    if (pId) {
+      staffWithProfiles.push({
+        staffId: staff.id,
+        profileId: pId,
+        fullName: staff.full_name,
+      });
+    }
+  }
+
+  if (staffWithProfiles.length === 0) {
+    return { error: "Không thể xác định tài khoản hồ sơ cho nhân sự đã chọn" };
+  }
+
+  // 3. Compute dates of the month
+  const [year, month] = monthStr.split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  const start = `${monthStr}-01`;
+  const end = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
+
+  const offDatesSet = new Set(offDates);
+  const targetDates: string[] = [];
+
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${monthStr}-${String(d).padStart(2, "0")}`;
+    const dateObj = new Date(year, month - 1, d);
+    const isSunday = dateObj.getDay() === 0;
+
+    if (skipOffDays) {
+      if (isSunday || offDatesSet.has(dateStr)) {
+        continue;
+      }
+    }
+    targetDates.push(dateStr);
+  }
+
+  if (targetDates.length === 0) {
+    return { error: "Không có ngày làm việc nào trong tháng được chọn" };
+  }
+
+  // 4. Fetch existing reports for this month
+  const targetUserIds = staffWithProfiles.map((s) => s.profileId);
+  const { data: existingReports, error: repErr } = await supabase
+    .from("daily_reports")
+    .select("id, user_id, report_date, tasks_data")
+    .in("user_id", targetUserIds)
+    .gte("report_date", start)
+    .lte("report_date", end);
+
+  if (repErr) {
+    console.error("Error querying existing daily_reports:", repErr);
+    return { error: "Lỗi truy vấn dữ liệu báo cáo: " + repErr.message };
+  }
+
+  const existingReportMap = new Map<string, { id: string; tasks_data: unknown }>();
+  for (const r of existingReports || []) {
+    existingReportMap.set(`${r.user_id}_${r.report_date}`, r);
+  }
+
+  // 5. Prepare bulk insert/updates
+  let formattedTime = "08:00";
+  if (customCheckInTime && customCheckInTime.trim()) {
+    const parts = customCheckInTime.trim().split(":");
+    if (parts.length >= 2) {
+      formattedTime = `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
+    }
+  }
+
+  const now = new Date().toISOString();
+  interface DailyReportInsert {
+    id: string;
+    user_id: string;
+    report_date: string;
+    tasks_data: unknown[];
+    status: string;
+    created_at: string;
+    updated_at: string;
+  }
+  const recordsToInsert: DailyReportInsert[] = [];
+  const reportIdsToUpdate: string[] = [];
+
+  for (const staff of staffWithProfiles) {
+    for (const dateStr of targetDates) {
+      const key = `${staff.profileId}_${dateStr}`;
+      const existing = existingReportMap.get(key);
+
+      if (existing) {
+        if (overwriteExisting) {
+          reportIdsToUpdate.push(existing.id);
+        }
+      } else {
+        recordsToInsert.push({
+          id: crypto.randomUUID(),
+          user_id: staff.profileId,
+          report_date: dateStr,
+          tasks_data: [],
+          status: "submitted",
+          created_at: `${dateStr}T${formattedTime}:00+07:00`,
+          updated_at: now,
+        });
+      }
+    }
+  }
+
+  // Execute inserts in batches of 100
+  const insertChunkSize = 100;
+  for (let i = 0; i < recordsToInsert.length; i += insertChunkSize) {
+    const chunk = recordsToInsert.slice(i, i + insertChunkSize);
+    const { error: insErr } = await supabase.from("daily_reports").insert(chunk);
+    if (insErr) {
+      console.error("Error inserting bulk monthly attendance chunk:", insErr);
+      return { error: "Lỗi lưu dữ liệu điểm danh: " + insErr.message };
+    }
+  }
+
+  // Execute updates if overwrite
+  if (reportIdsToUpdate.length > 0) {
+    const updateChunkSize = 100;
+    for (let i = 0; i < reportIdsToUpdate.length; i += updateChunkSize) {
+      const chunk = reportIdsToUpdate.slice(i, i + updateChunkSize);
+      const { error: updErr } = await supabase
+        .from("daily_reports")
+        .update({
+          tasks_data: [],
+          status: "submitted",
+          updated_at: now,
+        })
+        .in("id", chunk);
+      if (updErr) {
+        console.error("Error updating bulk monthly attendance chunk:", updErr);
+      }
+    }
+  }
+
+  revalidatePath("/dashboard");
+
+  return {
+    success: true as const,
+    staffCount: staffWithProfiles.length,
+    workingDaysCount: targetDates.length,
+    insertedCount: recordsToInsert.length,
+    updatedCount: reportIdsToUpdate.length,
+    totalRecords: recordsToInsert.length + reportIdsToUpdate.length,
+  };
+}
+
 
 export async function deleteDailyReport(
   staffId: number,

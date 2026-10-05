@@ -28,6 +28,7 @@ import { DailyAttendancePreviewModal, MonthlyAttendancePreviewModal } from "./at
 import { OffDaySettingsModal } from "./off-day-settings-modal";
 import { AutoAttendanceSettingsModal } from "./auto-attendance-settings-modal";
 import { BulkAttendanceModal } from "./bulk-attendance-modal";
+import { MonthlyBulkAttendanceModal } from "./monthly-bulk-attendance-modal";
 
 type AdminAttendancePanelProps = {
   initialData: AdminDashboardData;
@@ -52,6 +53,7 @@ export function AdminAttendancePanel({
   const { settings: autoAttendanceSettings, updateSettings: updateAutoAttendanceSettings } = useAutoAttendanceSettings();
   const [showAutoAttendanceModal, setShowAutoAttendanceModal] = useState(false);
   const [showBulkAttendanceModal, setShowBulkAttendanceModal] = useState(false);
+  const [showMonthlyBulkModal, setShowMonthlyBulkModal] = useState(false);
   const [isTriggeringAuto, setIsTriggeringAuto] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -287,6 +289,31 @@ export function AdminAttendancePanel({
       }
     });
   };
+
+  const handleMonthlyBulkSuccess = useCallback(
+    (res: {
+      monthStr: string;
+      staffCount: number;
+      workingDaysCount: number;
+      insertedCount: number;
+      updatedCount: number;
+      totalRecords: number;
+    }) => {
+      showToast(
+        `Đã tự động điểm danh tháng ${res.monthStr} cho ${res.staffCount} nhân sự (${res.totalRecords} lượt công).`,
+      );
+      fetchMonthlyData(res.monthStr);
+      if (selectedDate.startsWith(res.monthStr)) {
+        startTransition(async () => {
+          const result = await getAdminDashboardData(selectedDate);
+          if (!("error" in result)) {
+            setDailyData(result);
+          }
+        });
+      }
+    },
+    [selectedDate, showToast, startTransition],
+  );
 
   useEffect(() => {
     if (subTab === "monthly") {
@@ -773,6 +800,19 @@ export function AdminAttendancePanel({
                   className={`${adminControlClass} px-3 pr-8 w-40 sm:w-44 focus:ring-primary/25 cursor-pointer`}
                 />
               </div>
+
+              {/* Monthly Bulk Attendance Button */}
+              <button
+                type="button"
+                onClick={() => setShowMonthlyBulkModal(true)}
+                title="Tự động điểm danh cả tháng cho tất cả nhân sự"
+                className="h-9 flex items-center justify-center gap-1.5 rounded-md text-xs font-semibold text-white bg-primary hover:bg-primary-hover border border-primary-hover shadow-2xs cursor-pointer px-3.5 transition-colors active:scale-95 shrink-0"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Điểm danh cả tháng</span>
+              </button>
 
               {monthlyData && (
                 <button
@@ -1366,6 +1406,7 @@ export function AdminAttendancePanel({
         }))}
         onTriggerNow={handleTriggerAutoAttendanceNow}
         isTriggering={isTriggeringAuto}
+        onOpenMonthlyBulk={() => setShowMonthlyBulkModal(true)}
       />
 
       {/* Bulk Attendance Modal */}
@@ -1380,6 +1421,22 @@ export function AdminAttendancePanel({
           branchName: b.branchName,
         }))}
         onConfirm={handleExecuteBulkAttendance}
+        onSwitchToMonthly={() => setShowMonthlyBulkModal(true)}
+      />
+
+      {/* Monthly Bulk Attendance Modal */}
+      <MonthlyBulkAttendanceModal
+        open={showMonthlyBulkModal}
+        onClose={() => setShowMonthlyBulkModal(false)}
+        initialMonth={selectedMonth}
+        staffList={dailyData.staff}
+        branchList={dailyData.branchStats.map((b) => ({
+          branchId: b.branchId,
+          branchName: b.branchName,
+        }))}
+        currentBranchFilter={branchFilter}
+        isDateOff={isDateOff}
+        onSuccess={handleMonthlyBulkSuccess}
       />
 
       {/* Toast Notification */}

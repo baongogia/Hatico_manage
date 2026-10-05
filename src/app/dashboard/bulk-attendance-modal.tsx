@@ -15,6 +15,7 @@ interface BulkAttendanceModalProps {
     staffToMark: AdminStaffRow[],
     checkInTimeStr?: string
   ) => Promise<void>;
+  onSwitchToMonthly?: () => void;
 }
 
 export function BulkAttendanceModal({
@@ -25,6 +26,7 @@ export function BulkAttendanceModal({
   currentBranchFilter,
   branchList,
   onConfirm,
+  onSwitchToMonthly,
 }: BulkAttendanceModalProps) {
   const [scope, setScope] = useState<"unreported_only" | "all_in_scope">("unreported_only");
   const [branchScope, setBranchScope] = useState<string>(() => currentBranchFilter);
@@ -114,7 +116,27 @@ export function BulkAttendanceModal({
 
         {/* Content */}
         <div className="p-5 sm:p-6 space-y-4 text-xs">
-          
+          {onSwitchToMonthly && (
+            <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-lg p-2.5 flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 text-emerald-950 font-medium">
+                <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>Bạn muốn điểm danh cho cả tháng?</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onSwitchToMonthly();
+                }}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-semibold transition-colors cursor-pointer shrink-0 shadow-2xs"
+              >
+                Chuyển sang cả tháng
+              </button>
+            </div>
+          )}
+
           {/* Branch scope selector */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider block">
