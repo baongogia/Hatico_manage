@@ -17,6 +17,7 @@ import {
   formatCurrencyVND,
   formatPercent,
 } from "@/lib/weekly-marketing-calculator";
+import { CustomSelect } from "@/components/custom-select";
 
 interface WeeklyEditFormProps {
   initialReport: WeeklyMarketingReport;
@@ -1022,45 +1023,54 @@ export function WeeklyEditForm({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <select
+                      <CustomSelect
+                        portal
+                        size="xs"
                         value={item.platform}
-                        onChange={(e) =>
-                          handleUpdateContentItem(item.id, "platform", e.target.value as ContentPlatform)
+                        onChange={(val) =>
+                          handleUpdateContentItem(item.id, "platform", val as ContentPlatform)
                         }
-                        className="text-xs px-2 py-1 rounded-md border border-slate-200 font-semibold"
-                      >
-                        <option value="TikTok">TikTok</option>
-                        <option value="Facebook">Facebook</option>
-                        <option value="Website">Website</option>
-                        <option value="YouTube">YouTube</option>
-                      </select>
+                        options={[
+                          { value: "TikTok", label: "TikTok" },
+                          { value: "Facebook", label: "Facebook" },
+                          { value: "Website", label: "Website" },
+                          { value: "YouTube", label: "YouTube" },
+                        ]}
+                        className="w-28"
+                      />
 
-                      <select
+                      <CustomSelect
+                        portal
+                        size="xs"
                         value={item.rank || 0}
-                        onChange={(e) => {
-                          const r = parseInt(e.target.value);
+                        onChange={(val) => {
+                          const r = Number(val);
                           handleUpdateContentItem(item.id, "rank", r > 0 ? r : null);
                         }}
-                        className="text-xs px-2 py-1 rounded-md border border-slate-200 font-bold"
-                      >
-                        <option value={0}>Không xếp hạng</option>
-                        <option value={1}>🥇 Top 1</option>
-                        <option value={2}>🥈 Top 2</option>
-                        <option value={3}>🥉 Top 3</option>
-                      </select>
+                        options={[
+                          { value: 0, label: "Không xếp hạng" },
+                          { value: 1, label: "🥇 Top 1" },
+                          { value: 2, label: "🥈 Top 2" },
+                          { value: 3, label: "🥉 Top 3" },
+                        ]}
+                        className="w-32"
+                      />
 
-                      <select
+                      <CustomSelect
+                        portal
+                        size="xs"
                         value={item.status}
-                        onChange={(e) =>
-                          handleUpdateContentItem(item.id, "status", e.target.value as ContentStatus)
+                        onChange={(val) =>
+                          handleUpdateContentItem(item.id, "status", val as ContentStatus)
                         }
-                        className="text-xs px-2 py-1 rounded-md border border-slate-200 font-semibold"
-                      >
-                        <option value="Xuất sắc">Xuất sắc</option>
-                        <option value="Tốt">Tốt</option>
-                        <option value="Trung bình">Trung bình</option>
-                        <option value="Cần cải thiện">Cần cải thiện</option>
-                      </select>
+                        options={[
+                          { value: "Xuất sắc", label: "Xuất sắc" },
+                          { value: "Tốt", label: "Tốt" },
+                          { value: "Trung bình", label: "Trung bình" },
+                          { value: "Cần cải thiện", label: "Cần cải thiện" },
+                        ]}
+                        className="w-28"
+                      />
                     </div>
 
                     <button

@@ -17,6 +17,7 @@ import {
   checkDuplicateLeadAction,
   getMarketingCampaignsAction,
 } from "@/app/actions-marketing";
+import { CustomSelect } from "@/components/custom-select";
 
 export function LeadsPanel() {
   const [leads, setLeads] = useState<MarketingLeadItem[]>([]);
@@ -311,44 +312,44 @@ export function LeadsPanel() {
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-medium">Nguồn:</span>
-            <select
+            <CustomSelect
               value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              <option value="all">Tất cả nguồn</option>
-              {Object.entries(LEAD_SOURCE_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
+              onChange={(val) => setSourceFilter(String(val))}
+              options={[
+                { value: "all", label: "Tất cả nguồn" },
+                ...Object.entries(LEAD_SOURCE_LABELS).map(([k, v]) => ({ value: k, label: v })),
+              ]}
+              className="w-44"
+              size="sm"
+            />
           </div>
 
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-medium">Trạng thái:</span>
-            <select
+            <CustomSelect
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              {Object.entries(LEAD_STATUS_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
+              onChange={(val) => setStatusFilter(String(val))}
+              options={[
+                { value: "all", label: "Tất cả trạng thái" },
+                ...Object.entries(LEAD_STATUS_LABELS).map(([k, v]) => ({ value: k, label: v })),
+              ]}
+              className="w-44"
+              size="sm"
+            />
           </div>
 
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-medium">Chi nhánh:</span>
-            <select
+            <CustomSelect
               value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              <option value="all">Tất cả chi nhánh</option>
-              {HATICO_BRANCHES.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+              onChange={(val) => setBranchFilter(String(val))}
+              options={[
+                { value: "all", label: "Tất cả chi nhánh" },
+                ...HATICO_BRANCHES.map((b) => ({ value: b.id, label: b.name })),
+              ]}
+              className="w-48"
+              size="sm"
+            />
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -530,15 +531,14 @@ export function LeadsPanel() {
 
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Trạng thái khách hàng *</label>
-                  <select
+                  <CustomSelect
+                    portal
                     value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value as any)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold"
-                  >
-                    {Object.entries(LEAD_STATUS_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormStatus(val as any)}
+                    options={Object.entries(LEAD_STATUS_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+                    className="w-full"
+                    size="md"
+                  />
                 </div>
               </div>
 
@@ -602,30 +602,30 @@ export function LeadsPanel() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Nguồn khách hàng *</label>
-                  <select
+                  <CustomSelect
+                    portal
                     value={formSource}
-                    onChange={(e) => setFormSource(e.target.value as any)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                  >
-                    {Object.entries(LEAD_SOURCE_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormSource(val as any)}
+                    options={Object.entries(LEAD_SOURCE_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+                    className="w-full"
+                    size="md"
+                  />
                 </div>
 
                 {(formSource === "facebook_ads" || formSource === "tiktok_ads") && (
                   <div>
                     <label className="block text-slate-600 font-semibold mb-1">Liên kết chiến dịch Ads</label>
-                    <select
+                    <CustomSelect
+                      portal
                       value={formCampaignId}
-                      onChange={(e) => setFormCampaignId(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                    >
-                      <option value="">-- Không liên kết --</option>
-                      {availableCampaigns.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setFormCampaignId(String(val))}
+                      options={[
+                        { value: "", label: "-- Không liên kết --" },
+                        ...availableCampaigns.map((c) => ({ value: c.id, label: c.name })),
+                      ]}
+                      className="w-full"
+                      size="md"
+                    />
                   </div>
                 )}
               </div>
@@ -633,28 +633,26 @@ export function LeadsPanel() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Chi nhánh tạo nguồn *</label>
-                  <select
+                  <CustomSelect
+                    portal
                     value={formBranchId}
-                    onChange={(e) => setFormBranchId(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                  >
-                    {HATICO_BRANCHES.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormBranchId(String(val))}
+                    options={HATICO_BRANCHES.map((b) => ({ value: b.id, label: b.name }))}
+                    className="w-full"
+                    size="md"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Chi nhánh tiếp nhận xử lý *</label>
-                  <select
+                  <CustomSelect
+                    portal
                     value={formHandlerBranchId}
-                    onChange={(e) => setFormHandlerBranchId(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                  >
-                    {HATICO_BRANCHES.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormHandlerBranchId(String(val))}
+                    options={HATICO_BRANCHES.map((b) => ({ value: b.id, label: b.name }))}
+                    className="w-full"
+                    size="md"
+                  />
                 </div>
               </div>
 

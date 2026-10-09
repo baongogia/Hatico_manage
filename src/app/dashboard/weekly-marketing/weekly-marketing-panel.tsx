@@ -25,6 +25,7 @@ import {
   getCurrentYear,
 } from "@/lib/periodic-marketing-aggregator";
 import { HATICO_BRANCHES } from "@/lib/marketing-types";
+import { CustomSelect } from "@/components/custom-select";
 import { PeriodicKpiCards } from "./periodic-kpi-cards";
 import { PeriodicChannelTable } from "./periodic-channel-table";
 import { PeriodicCampaignsSection } from "./periodic-campaigns-section";
@@ -321,33 +322,33 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
               <span className="block text-[10px] text-slate-500 font-semibold mb-1">
                 Phạm vi chi nhánh:
               </span>
-              <select
+              <CustomSelect
                 value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
-                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-[4px] text-slate-900 font-medium"
-              >
-                <option value="all">Toàn hệ thống</option>
-                {HATICO_BRANCHES.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedBranchId(String(val))}
+                options={[
+                  { value: "all", label: "Toàn hệ thống" },
+                  ...HATICO_BRANCHES.map((b) => ({
+                    value: b.id,
+                    label: b.name,
+                  })),
+                ]}
+                className="w-full"
+                size="sm"
+              />
             </div>
 
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] text-slate-500 font-semibold">Năm:</span>
-              <select
+              <CustomSelect
                 value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-[4px] text-slate-900 font-medium"
-              >
-                {[getCurrentYear(), getCurrentYear() - 1].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedYear(Number(val))}
+                options={[getCurrentYear(), getCurrentYear() - 1].map((y) => ({
+                  value: y,
+                  label: `Năm ${y}`,
+                }))}
+                className="w-28"
+                size="xs"
+              />
             </div>
           </div>
 

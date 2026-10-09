@@ -26,6 +26,7 @@ interface AdminSelectProps {
   compact?: boolean;
   micro?: boolean;
   portal?: boolean;
+  allowClear?: boolean;
 }
 
 export default function AdminSelect({
@@ -37,6 +38,7 @@ export default function AdminSelect({
   compact = false,
   micro = false,
   portal = false,
+  allowClear = false,
 }: AdminSelectProps) {
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
@@ -123,7 +125,7 @@ export default function AdminSelect({
           <button
             type="button"
             onClick={() => {
-              onChange(value === opt.value ? "" : opt.value);
+              onChange(value === opt.value && allowClear ? "" : opt.value);
               setOpen(false);
             }}
             className={`w-full text-left px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-between gap-2 ${

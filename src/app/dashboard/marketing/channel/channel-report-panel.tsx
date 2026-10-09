@@ -12,6 +12,7 @@ import {
   saveMarketingContentAction,
   deleteMarketingContentAction,
 } from "@/app/actions-marketing";
+import { CustomSelect } from "@/components/custom-select";
 
 interface ChannelReportPanelProps {
   platform: MarketingPlatform;
@@ -254,31 +255,31 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
           {platform === "facebook" && (
             <div className="flex items-center gap-1.5">
               <span className="text-slate-500 font-medium">Fanpage:</span>
-              <select
+              <CustomSelect
                 value={selectedFanpage}
-                onChange={(e) => setSelectedFanpage(e.target.value)}
-                className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-              >
-                <option value="all">Tất cả Fanpage</option>
-                {HATICO_FANPAGES.map((fp) => (
-                  <option key={fp} value={fp}>{fp}</option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedFanpage(String(val))}
+                options={[
+                  { value: "all", label: "Tất cả Fanpage" },
+                  ...HATICO_FANPAGES.map((fp) => ({ value: fp, label: fp })),
+                ]}
+                className="w-48"
+                size="sm"
+              />
             </div>
           )}
 
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-medium">Chi nhánh:</span>
-            <select
+            <CustomSelect
               value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              <option value="all">Tất cả chi nhánh</option>
-              {HATICO_BRANCHES.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedBranch(String(val))}
+              options={[
+                { value: "all", label: "Tất cả chi nhánh" },
+                ...HATICO_BRANCHES.map((b) => ({ value: b.id, label: b.name })),
+              ]}
+              className="w-48"
+              size="sm"
+            />
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -544,35 +545,29 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
 
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Loại nội dung *</label>
-                  <select
+                  <CustomSelect
+                    portal
                     value={formContentType}
-                    onChange={(e) => setFormContentType(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                  >
-                    {platform === "facebook" && (
-                      <>
-                        <option value="Bài viết">Bài viết</option>
-                        <option value="Reels">Reels</option>
-                        <option value="Video">Video</option>
-                      </>
-                    )}
-                    {platform === "tiktok" && (
-                      <>
-                        <option value="Video ngắn">Video ngắn</option>
-                      </>
-                    )}
-                    {platform === "youtube" && (
-                      <>
-                        <option value="Shorts">Shorts</option>
-                        <option value="Video dài">Video dài</option>
-                      </>
-                    )}
-                    {platform === "website" && (
-                      <>
-                        <option value="Bài website">Bài website</option>
-                      </>
-                    )}
-                  </select>
+                    onChange={(v) => setFormContentType(String(v))}
+                    options={
+                      platform === "facebook"
+                        ? [
+                            { value: "Bài viết", label: "Bài viết" },
+                            { value: "Reels", label: "Reels" },
+                            { value: "Video", label: "Video" },
+                          ]
+                        : platform === "tiktok"
+                        ? [{ value: "Video ngắn", label: "Video ngắn" }]
+                        : platform === "youtube"
+                        ? [
+                            { value: "Shorts", label: "Shorts" },
+                            { value: "Video dài", label: "Video dài" },
+                          ]
+                        : [{ value: "Bài website", label: "Bài website" }]
+                    }
+                    className="w-full"
+                    size="md"
+                  />
                 </div>
               </div>
 
@@ -615,29 +610,27 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
               {platform === "facebook" && (
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Fanpage đăng bài</label>
-                  <select
+                  <CustomSelect
+                    portal
                     value={formFanpage}
-                    onChange={(e) => setFormFanpage(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                  >
-                    {HATICO_FANPAGES.map((fp) => (
-                      <option key={fp} value={fp}>{fp}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFormFanpage(String(v))}
+                    options={HATICO_FANPAGES.map((fp) => ({ value: fp, label: fp }))}
+                    className="w-full"
+                    size="md"
+                  />
                 </div>
               )}
 
               <div>
                 <label className="block text-slate-600 font-semibold mb-1">Chi nhánh liên quan</label>
-                <select
+                <CustomSelect
+                  portal
                   value={formBranchId}
-                  onChange={(e) => setFormBranchId(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                >
-                  {HATICO_BRANCHES.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setFormBranchId(String(v))}
+                  options={HATICO_BRANCHES.map((b) => ({ value: b.id, label: b.name }))}
+                  className="w-full"
+                  size="md"
+                />
               </div>
 
               {/* Phần số liệu thực tế */}

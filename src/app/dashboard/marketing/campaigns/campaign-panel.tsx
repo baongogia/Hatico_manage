@@ -14,6 +14,7 @@ import {
   saveMarketingCampaignAction,
   deleteMarketingCampaignAction,
 } from "@/app/actions-marketing";
+import { CustomSelect } from "@/components/custom-select";
 
 interface CampaignPanelProps {
   platform: AdPlatform;
@@ -288,31 +289,33 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-medium">Chi nhánh:</span>
-            <select
+            <CustomSelect
               value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              <option value="all">Tất cả chi nhánh</option>
-              {HATICO_BRANCHES.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedBranch(String(val))}
+              options={[
+                { value: "all", label: "Tất cả chi nhánh" },
+                ...HATICO_BRANCHES.map((b) => ({ value: b.id, label: b.name })),
+              ]}
+              className="w-48"
+              size="sm"
+            />
           </div>
 
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-medium">Trạng thái:</span>
-            <select
+            <CustomSelect
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="running">Đang chạy</option>
-              <option value="paused">Tạm dừng</option>
-              <option value="completed">Hoàn thành</option>
-              <option value="preparing">Chuẩn bị</option>
-            </select>
+              onChange={(val) => setStatusFilter(String(val))}
+              options={[
+                { value: "all", label: "Tất cả trạng thái" },
+                { value: "running", label: "Đang chạy" },
+                { value: "paused", label: "Tạm dừng" },
+                { value: "completed", label: "Hoàn thành" },
+                { value: "preparing", label: "Chuẩn bị" },
+              ]}
+              className="w-40"
+              size="sm"
+            />
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -475,29 +478,31 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Chi nhánh áp dụng</label>
-                  <select
+                  <CustomSelect
+                    portal
                     value={formBranchId}
-                    onChange={(e) => setFormBranchId(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                  >
-                    {HATICO_BRANCHES.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormBranchId(String(val))}
+                    options={HATICO_BRANCHES.map((b) => ({ value: b.id, label: b.name }))}
+                    className="w-full"
+                    size="md"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Trạng thái chiến dịch *</label>
-                  <select
+                  <CustomSelect
+                    portal
                     value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value as any)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold"
-                  >
-                    <option value="running">Đang chạy</option>
-                    <option value="paused">Tạm dừng</option>
-                    <option value="completed">Hoàn thành</option>
-                    <option value="preparing">Chuẩn bị</option>
-                  </select>
+                    onChange={(val) => setFormStatus(val as any)}
+                    options={[
+                      { value: "running", label: "Đang chạy" },
+                      { value: "paused", label: "Tạm dừng" },
+                      { value: "completed", label: "Hoàn thành" },
+                      { value: "preparing", label: "Chuẩn bị" },
+                    ]}
+                    className="w-full"
+                    size="md"
+                  />
                 </div>
               </div>
 
@@ -516,15 +521,14 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
                 {platform === "facebook_ads" && (
                   <div>
                     <label className="block text-slate-600 font-semibold mb-1">Fanpage chạy quảng cáo</label>
-                    <select
+                    <CustomSelect
+                      portal
                       value={formFanpage}
-                      onChange={(e) => setFormFanpage(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                    >
-                      {HATICO_FANPAGES.map((fp) => (
-                        <option key={fp} value={fp}>{fp}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setFormFanpage(String(val))}
+                      options={HATICO_FANPAGES.map((fp) => ({ value: fp, label: fp }))}
+                      className="w-full"
+                      size="md"
+                    />
                   </div>
                 )}
               </div>

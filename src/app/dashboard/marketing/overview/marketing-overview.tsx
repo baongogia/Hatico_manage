@@ -12,6 +12,7 @@ import {
 } from "@/lib/marketing-types";
 import { getMarketingDashboardAction } from "@/app/actions-marketing";
 import { exportMarketingExecutiveExcel } from "@/lib/marketing-export";
+import { CustomSelect } from "@/components/custom-select";
 import {
   ResponsiveContainer,
   LineChart,
@@ -201,34 +202,37 @@ export function MarketingOverview() {
         <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-500">Chi nhánh:</span>
-            <select
+            <CustomSelect
               value={filter.branchId || "all"}
-              onChange={(e) => setFilter({ ...filter, branchId: e.target.value })}
-              className="px-2.5 py-1 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-            >
-              <option value="all">Tất cả chi nhánh</option>
-              {HATICO_BRANCHES.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setFilter({ ...filter, branchId: String(val) })}
+              options={[
+                { value: "all", label: "Tất cả chi nhánh" },
+                ...HATICO_BRANCHES.map((b) => ({
+                  value: b.id,
+                  label: b.name,
+                })),
+              ]}
+              className="w-48"
+              size="sm"
+            />
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-500">Kênh:</span>
-            <select
+            <CustomSelect
               value={filter.channel || "all"}
-              onChange={(e) => setFilter({ ...filter, channel: e.target.value as any })}
-              className="px-2.5 py-1 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-            >
-              <option value="all">Tất cả kênh</option>
-              <option value="facebook">Facebook</option>
-              <option value="tiktok">TikTok</option>
-              <option value="youtube">YouTube</option>
-              <option value="website">Website</option>
-              <option value="ads">Chiến dịch Ads</option>
-            </select>
+              onChange={(val) => setFilter({ ...filter, channel: val as any })}
+              options={[
+                { value: "all", label: "Tất cả kênh" },
+                { value: "facebook", label: "Facebook" },
+                { value: "tiktok", label: "TikTok" },
+                { value: "youtube", label: "YouTube" },
+                { value: "website", label: "Website" },
+                { value: "ads", label: "Chiến dịch Ads" },
+              ]}
+              className="w-40"
+              size="sm"
+            />
           </div>
 
           {filter.dateRange === "custom" && (

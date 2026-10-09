@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { AutoAttendanceSettings } from "@/lib/auto-attendance-settings";
 import { AdminStaffRow } from "../actions";
+import { CustomSelect } from "@/components/custom-select";
 
 interface AutoAttendanceSettingsModalProps {
   open: boolean;
@@ -295,18 +296,20 @@ export function AutoAttendanceSettingsModal({
 
             {/* Filter and Search Bar */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
-              <select
+              <CustomSelect
+                portal
                 value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                className="h-8 px-2.5 rounded border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer"
-              >
-                <option value="all">Tất cả chi nhánh ({staffList.length})</option>
-                {branchList.map((b) => (
-                  <option key={b.branchId} value={b.branchId}>
-                    {b.branchName}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setBranchFilter(String(val))}
+                options={[
+                  { value: "all", label: `Tất cả chi nhánh (${staffList.length})` },
+                  ...branchList.map((b) => ({
+                    value: b.branchId,
+                    label: b.branchName,
+                  })),
+                ]}
+                className="w-full sm:w-64"
+                size="sm"
+              />
 
               <div className="relative flex-1">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-slate-400">

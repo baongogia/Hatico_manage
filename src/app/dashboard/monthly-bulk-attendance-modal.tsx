@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { markMonthlyAttendanceBulk } from "../actions";
+import { CustomSelect } from "@/components/custom-select";
 
 interface MonthlyBulkAttendanceModalProps {
   open: boolean;
@@ -211,18 +212,25 @@ export function MonthlyBulkAttendanceModal({
             <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider block">
               Phạm vi nhân sự
             </label>
-            <select
+            <CustomSelect
+              portal
               value={branchScope}
-              onChange={(e) => setBranchScope(e.target.value)}
-              className="w-full h-8.5 px-2.5 rounded border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer"
-            >
-              <option value="all">Toàn bộ nhân sự - Toàn hệ thống ({staffList.length} nhân sự)</option>
-              {branchList.map((b) => (
-                <option key={b.branchId} value={b.branchId}>
-                  Chi nhánh {b.branchName} ({staffList.filter((s) => s.branch_id === b.branchId).length} nhân sự)
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setBranchScope(String(val))}
+              options={[
+                {
+                  value: "all",
+                  label: `Toàn bộ nhân sự - Toàn hệ thống (${staffList.length} nhân sự)`,
+                },
+                ...branchList.map((b) => ({
+                  value: b.branchId,
+                  label: `Chi nhánh ${b.branchName} (${
+                    staffList.filter((s) => s.branch_id === b.branchId).length
+                  } nhân sự)`,
+                })),
+              ]}
+              className="w-full"
+              size="md"
+            />
           </div>
 
           {/* 3. Ngày áp dụng */}

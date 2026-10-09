@@ -11,6 +11,7 @@ import {
   getCurrentYear,
 } from "@/lib/periodic-marketing-aggregator";
 import { HATICO_BRANCHES } from "@/lib/marketing-types";
+import { CustomSelect } from "@/components/custom-select";
 
 interface PeriodicCreateModalProps {
   isOpen: boolean;
@@ -103,40 +104,41 @@ export function PeriodicCreateModal({
               <label className="block text-slate-600 font-semibold mb-1">
                 Năm báo cáo
               </label>
-              <select
+              <CustomSelect
+                portal
                 value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-[4px] text-slate-900"
-              >
-                {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
-                  <option key={y} value={y}>
-                    Năm {y}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setYear(Number(val))}
+                options={[currentYear, currentYear - 1, currentYear - 2].map((y) => ({
+                  value: y,
+                  label: `Năm ${y}`,
+                }))}
+                className="w-full"
+                size="md"
+              />
             </div>
 
             <div>
               <label className="block text-slate-600 font-semibold mb-1">
                 {reportType === "weekly" ? "Chọn tuần" : "Chọn tháng"}
               </label>
-              <select
+              <CustomSelect
+                portal
                 value={periodNumber}
-                onChange={(e) => setPeriodNumber(Number(e.target.value))}
-                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-[4px] text-slate-900"
-              >
-                {reportType === "weekly"
-                  ? Array.from({ length: 52 }, (_, i) => i + 1).map((w) => (
-                      <option key={w} value={w}>
-                        Tuần {w}
-                      </option>
-                    ))
-                  : Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                      <option key={m} value={m}>
-                        Tháng {m}
-                      </option>
-                    ))}
-              </select>
+                onChange={(val) => setPeriodNumber(Number(val))}
+                options={
+                  reportType === "weekly"
+                    ? Array.from({ length: 52 }, (_, i) => i + 1).map((w) => ({
+                        value: w,
+                        label: `Tuần ${w}`,
+                      }))
+                    : Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
+                        value: m,
+                        label: `Tháng ${m}`,
+                      }))
+                }
+                className="w-full"
+                size="md"
+              />
             </div>
           </div>
 
@@ -144,18 +146,20 @@ export function PeriodicCreateModal({
             <label className="block text-slate-600 font-semibold mb-1">
               Phạm vi chi nhánh
             </label>
-            <select
+            <CustomSelect
+              portal
               value={branchId}
-              onChange={(e) => setBranchId(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-[4px] text-slate-900"
-            >
-              <option value="all">Toàn hệ thống Hatico</option>
-              {HATICO_BRANCHES.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setBranchId(String(val))}
+              options={[
+                { value: "all", label: "Toàn hệ thống Hatico" },
+                ...HATICO_BRANCHES.map((b) => ({
+                  value: b.id,
+                  label: b.name,
+                })),
+              ]}
+              className="w-full"
+              size="md"
+            />
           </div>
 
           {/* Date range preview */}
