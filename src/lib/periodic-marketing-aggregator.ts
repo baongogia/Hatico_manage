@@ -91,7 +91,7 @@ async function computePeriodMetrics(
   const [contents, campaigns, leads] = await Promise.all([
     fetchMarketingContents(undefined, targetBranch, startDate, endDate),
     fetchMarketingCampaigns(undefined, targetBranch, startDate, endDate),
-    fetchMarketingLeads(undefined, undefined, targetBranch, startDate, endDate),
+    fetchMarketingLeads(undefined, targetBranch, startDate, endDate),
   ]);
 
   // 1. KÊNH & NỘI DUNG (Facebook, TikTok, YouTube, Website)

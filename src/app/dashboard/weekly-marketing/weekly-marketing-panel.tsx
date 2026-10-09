@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Profile } from "../../actions";
 import {
@@ -16,6 +17,7 @@ import {
   refreshPeriodicReportDataAction,
   closePeriodicReportAction,
   reopenPeriodicReportAction,
+  deletePeriodicReportAction,
 } from "@/app/actions-periodic-marketing";
 import {
   getCurrentWeekNumber,
@@ -30,6 +32,7 @@ import { PeriodicBranchTable } from "./periodic-branch-table";
 import { PeriodicEvaluationSection } from "./periodic-evaluation-section";
 import { PeriodicActionPlanSection } from "./periodic-action-plan-section";
 import { PeriodicCreateModal } from "./periodic-create-modal";
+import { PeriodicMarketingPrintDocument } from "./periodic-marketing-print-document";
 
 interface WeeklyMarketingPanelProps {
   profile: Profile;
@@ -56,10 +59,41 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
   const [editActionPlan, setEditActionPlan] = useState<PeriodicActionPlanItem[]>([]);
 
   const [isPending, startTransition] = useTransition();
+  const [printMounted, setPrintMounted] = useState(false);
+
+  useEffect(() => {
+    setPrintMounted(true);
+  }, []);
 
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleDeleteReport = () => {
+    if (!selectedReport) return;
+    const confirmName =
+      selectedReport.reportType === "weekly"
+        ? `Tuần ${selectedReport.periodNumber}/${selectedReport.year}`
+        : `Tháng ${selectedReport.periodNumber}/${selectedReport.year}`;
+    if (
+      !window.confirm(
+        `Bạn có chắc chắn muốn xóa vĩnh viễn báo cáo ${confirmName}? Thao tác này không thể hoàn tác.`
+      )
+    ) {
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await deletePeriodicReportAction(selectedReport.id);
+      if (res.success) {
+        showToast("Đã xóa báo cáo thành công!");
+        setReports((prev) => prev.filter((r) => r.id !== selectedReport.id));
+        setSelectedReportId("");
+      } else {
+        alert(res.error || "Lỗi khi xóa báo cáo!");
+      }
+    });
   };
 
   // Load reports from server
@@ -520,6 +554,20 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
                     <span>🖨️</span>
                     <span>In / PDF</span>
                   </button>
+
+                  {/* Delete Report */}
+                  {(selectedReport.status === "draft" || isAdmin) && !isEditing && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteReport}
+                      disabled={isPending}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-[4px] cursor-pointer transition-colors disabled:opacity-50"
+                      title="Xóa báo cáo này"
+                    >
+                      <span>🗑️</span>
+                      <span>Xóa</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -734,6 +782,12 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
           setIsEditing(false);
         }}
       />
+
+      {/* Printable Document Portal */}
+      {printMounted && selectedReport && createPortal(
+        <PeriodicMarketingPrintDocument report={selectedReport} />,
+        document.body
+      )}
     </div>
   );
 }

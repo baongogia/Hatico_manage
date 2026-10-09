@@ -1,9 +1,5 @@
-import { getSessionUser } from "@/app/actions";
 import { redirect } from "next/navigation";
-import { MarketingClient } from "../marketing-client";
 
 export default async function FacebookAdsPage() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  return <MarketingClient profile={user} initialView="facebook_ads" />;
+  redirect("/dashboard?view=facebook_ads");
 }

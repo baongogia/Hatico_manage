@@ -125,9 +125,16 @@ export async function fetchMarketingContents(
   }
 
   // Fallback: Read from daily_reports
-  const { data: reports } = await supabase
+  let fbQuery = supabase
     .from("daily_reports")
-    .select("tasks_data, report_date");
+    .select("tasks_data, report_date")
+    .order("report_date", { ascending: false });
+
+  if (startDate) fbQuery = fbQuery.gte("report_date", startDate);
+  if (endDate) fbQuery = fbQuery.lte("report_date", endDate);
+  else fbQuery = fbQuery.limit(500);
+
+  const { data: reports } = await fbQuery;
 
   const list: MarketingContentItem[] = [];
   for (const r of reports || []) {
@@ -217,9 +224,16 @@ export async function fetchMarketingCampaigns(
   }
 
   // Fallback
-  const { data: reports } = await supabase
+  let fbQuery = supabase
     .from("daily_reports")
-    .select("tasks_data, report_date");
+    .select("tasks_data, report_date")
+    .order("report_date", { ascending: false });
+
+  if (startDate) fbQuery = fbQuery.gte("report_date", startDate);
+  if (endDate) fbQuery = fbQuery.lte("report_date", endDate);
+  else fbQuery = fbQuery.limit(500);
+
+  const { data: reports } = await fbQuery;
 
   const list: MarketingCampaignItem[] = [];
   for (const r of reports || []) {
@@ -312,9 +326,16 @@ export async function fetchMarketingLeads(
   }
 
   // Fallback
-  const { data: reports } = await supabase
+  let fbQuery = supabase
     .from("daily_reports")
-    .select("tasks_data, report_date");
+    .select("tasks_data, report_date")
+    .order("report_date", { ascending: false });
+
+  if (startDate) fbQuery = fbQuery.gte("report_date", startDate);
+  if (endDate) fbQuery = fbQuery.lte("report_date", endDate);
+  else fbQuery = fbQuery.limit(500);
+
+  const { data: reports } = await fbQuery;
 
   const list: MarketingLeadItem[] = [];
   for (const r of reports || []) {
@@ -401,6 +422,9 @@ export async function checkPhoneDuplicate(phone: string, currentLeadId?: string)
 // HELPERS FOR FALLBACK JSON STORAGE IN DAILY_REPORTS
 // ------------------------------------------------------------------------------
 
+const isValidUuid = (id?: string) =>
+  Boolean(id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id));
+
 async function storeDailyReportTaskRecord(
   supabase: ReturnType<typeof createServiceClient>,
   userId: string,
@@ -409,6 +433,12 @@ async function storeDailyReportTaskRecord(
   recordId: string,
   recordData: any
 ) {
+  let effectiveUserId = isValidUuid(userId) ? userId : null;
+  if (!effectiveUserId) {
+    const { data: fallbackUser } = await supabase.from("profiles").select("id").limit(1).maybeSingle();
+    effectiveUserId = fallbackUser?.id || "ae5c2a8c-738a-4831-b36a-0d6c000d64af";
+  }
+
   // Find report for this date or user's report
   let { data: report } = await supabase
     .from("daily_reports")
@@ -421,7 +451,7 @@ async function storeDailyReportTaskRecord(
     const { data: newRep, error } = await supabase
       .from("daily_reports")
       .insert({
-        user_id: userId,
+        user_id: effectiveUserId,
         report_date: date,
         tasks_data: [],
         status: "submitted",
@@ -429,7 +459,10 @@ async function storeDailyReportTaskRecord(
       .select("id, tasks_data, user_id")
       .single();
 
-    if (error || !newRep) return;
+    if (error || !newRep) {
+      console.error("Error creating daily_reports entry for marketing data:", error);
+      return;
+    }
     report = newRep;
   }
 

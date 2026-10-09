@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Profile } from "@/app/actions";
-import { MarketingShell, MarketingSubView } from "./marketing-shell";
+import { MarketingShell, MainDashboardView } from "./marketing-shell";
 import { MarketingOverview } from "./overview/marketing-overview";
 import { ChannelReportPanel } from "./channel/channel-report-panel";
 import { CampaignPanel } from "./campaigns/campaign-panel";
@@ -12,26 +12,25 @@ import { BranchesPanel } from "./branches/branches-panel";
 
 interface MarketingClientProps {
   profile: Profile;
-  initialView?: MarketingSubView;
+  initialView?: MainDashboardView;
 }
 
 export function MarketingClient({ profile, initialView = "overview" }: MarketingClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const viewParam = searchParams.get("view") as MarketingSubView | null;
+  const viewParam = searchParams.get("view") as MainDashboardView | null;
 
-  const [activeView, setActiveView] = useState<MarketingSubView>(viewParam || initialView);
+  const [activeView, setActiveView] = useState<MainDashboardView>(viewParam || initialView);
 
   useEffect(() => {
     if (viewParam && viewParam !== activeView) {
       setActiveView(viewParam);
     }
-  }, [viewParam]);
+  }, [viewParam, activeView]);
 
-  const handleViewChange = (view: MarketingSubView) => {
+  const handleViewChange = (view: MainDashboardView) => {
     setActiveView(view);
-    const url = view === "overview" ? "/dashboard/marketing" : `/dashboard/marketing?view=${view}`;
-    window.history.replaceState(null, "", url);
+    router.push(view === "overview" ? "/dashboard" : `/dashboard?view=${view}`);
   };
 
   return (

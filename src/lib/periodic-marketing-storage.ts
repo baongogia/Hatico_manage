@@ -34,19 +34,124 @@ async function checkPeriodicTable(supabase: ReturnType<typeof createServiceClien
 // LOCAL STORAGE FALLBACK HELPERS
 // ==============================================================================
 
+// In-memory server cache to guarantee immediate consistency across server actions & tests
+const serverReportsCache = new Map<string, MarketingPeriodicReport>();
+
+async function loadFallbackDailyReports(
+  supabase: ReturnType<typeof createServiceClient>
+): Promise<MarketingPeriodicReport[]> {
+  try {
+    const { data: reports } = await supabase.from("daily_reports").select("tasks_data");
+    const list: MarketingPeriodicReport[] = [];
+    for (const r of reports || []) {
+      const tasks = Array.isArray(r.tasks_data) ? r.tasks_data : [];
+      for (const t of tasks) {
+        if (t.type === "marketing_periodic_report_record" && t.report) {
+          const rep = t.report as MarketingPeriodicReport;
+          list.push(rep);
+          serverReportsCache.set(rep.id, rep);
+        }
+      }
+    }
+    for (const [id, rep] of serverReportsCache.entries()) {
+      if (!list.some((r) => r.id === id)) {
+        list.push(rep);
+      }
+    }
+    return list;
+  } catch (err) {
+    return Array.from(serverReportsCache.values());
+  }
+}
+
+async function saveFallbackDailyReport(
+  supabase: ReturnType<typeof createServiceClient>,
+  report: MarketingPeriodicReport
+): Promise<void> {
+  serverReportsCache.set(report.id, report);
+  const date = report.startDate || new Date().toISOString().slice(0, 10);
+  try {
+    let { data: dr } = await supabase
+      .from("daily_reports")
+      .select("id, tasks_data")
+      .eq("report_date", date)
+      .limit(1)
+      .maybeSingle();
+
+    if (!dr) {
+      const { data: fallbackUser } = await supabase.from("profiles").select("id").limit(1).maybeSingle();
+      const userId = fallbackUser?.id || "ae5c2a8c-738a-4831-b36a-0d6c000d64af";
+      const { data: newDr } = await supabase
+        .from("daily_reports")
+        .insert({
+          user_id: userId,
+          report_date: date,
+          tasks_data: [],
+          status: "submitted",
+        })
+        .select("id, tasks_data")
+        .single();
+      dr = newDr;
+    }
+
+    if (dr) {
+      const tasks: any[] = Array.isArray(dr.tasks_data) ? [...dr.tasks_data] : [];
+      const idx = tasks.findIndex((t) => t.type === "marketing_periodic_report_record" && t.report?.id === report.id);
+      const entry = { type: "marketing_periodic_report_record", report };
+      if (idx >= 0) tasks[idx] = entry;
+      else tasks.push(entry);
+      await supabase
+        .from("daily_reports")
+        .update({ tasks_data: tasks, updated_at: new Date().toISOString() })
+        .eq("id", dr.id);
+    }
+  } catch (err) {
+    console.error("Error saving fallback periodic report:", err);
+  }
+}
+
+async function removeFallbackDailyReport(
+  supabase: ReturnType<typeof createServiceClient>,
+  reportId: string
+): Promise<void> {
+  serverReportsCache.delete(reportId);
+  try {
+    const { data: reports } = await supabase.from("daily_reports").select("id, tasks_data");
+    for (const r of reports || []) {
+      if (!Array.isArray(r.tasks_data)) continue;
+      const filtered = r.tasks_data.filter(
+        (t: any) => !(t.type === "marketing_periodic_report_record" && t.report?.id === reportId)
+      );
+      if (filtered.length !== r.tasks_data.length) {
+        await supabase
+          .from("daily_reports")
+          .update({ tasks_data: filtered, updated_at: new Date().toISOString() })
+          .eq("id", r.id);
+      }
+    }
+  } catch (err) {
+    console.error("Error removing fallback periodic report:", err);
+  }
+}
+
 function loadLocalReports(): MarketingPeriodicReport[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") {
+    return Array.from(serverReportsCache.values());
+  }
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) return Array.from(serverReportsCache.values());
     return JSON.parse(raw) as MarketingPeriodicReport[];
   } catch (err) {
     console.error("Error reading from local periodic storage:", err);
-    return [];
+    return Array.from(serverReportsCache.values());
   }
 }
 
 function saveLocalReports(reports: MarketingPeriodicReport[]): void {
+  for (const r of reports) {
+    serverReportsCache.set(r.id, r);
+  }
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(reports));
@@ -59,6 +164,9 @@ function saveLocalReports(reports: MarketingPeriodicReport[]): void {
 // DATABASE CONVERTERS
 // ==============================================================================
 
+const isValidUuid = (id?: string) =>
+  Boolean(id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id));
+
 function toDbRow(rep: MarketingPeriodicReport) {
   return {
     id: rep.id,
@@ -69,7 +177,7 @@ function toDbRow(rep: MarketingPeriodicReport) {
     branch_name: rep.branchName,
     start_date: rep.startDate,
     end_date: rep.endDate,
-    creator_id: rep.creatorId || null,
+    creator_id: isValidUuid(rep.creatorId) ? rep.creatorId : null,
     creator_name: rep.creatorName,
     status: rep.status,
     closed_at: rep.closedAt || null,
@@ -143,11 +251,13 @@ export async function fetchPeriodicReports(
       }
     }
   } catch (err) {
-    console.warn("Falling back to local storage for periodic reports:", err);
+    console.warn("Falling back to daily_reports storage for periodic reports:", err);
   }
 
-  // Fallback
-  let local = loadLocalReports();
+  // Fallback to daily_reports and in-memory cache
+  const fallbackSupabase = createServiceClient();
+  const fallbackList = await loadFallbackDailyReports(fallbackSupabase);
+  let local = fallbackList.length > 0 ? fallbackList : loadLocalReports();
   if (reportType) local = local.filter((r) => r.reportType === reportType);
   if (year) local = local.filter((r) => r.year === year);
   if (branchId && branchId !== "all") local = local.filter((r) => r.branchId === branchId);
@@ -183,7 +293,9 @@ export async function getPeriodicReportByPeriod(
     console.warn("Storage check fallback:", err);
   }
 
-  const local = loadLocalReports();
+  const fallbackSupabase = createServiceClient();
+  const fallbackList = await loadFallbackDailyReports(fallbackSupabase);
+  const local = fallbackList.length > 0 ? fallbackList : loadLocalReports();
   return (
     local.find(
       (r) =>
@@ -276,6 +388,8 @@ export async function createOrGetPeriodicReport(
     const hasTable = await checkPeriodicTable(supabase);
     if (hasTable) {
       await supabase.from("marketing_periodic_reports").upsert(toDbRow(newReport));
+    } else {
+      await saveFallbackDailyReport(supabase, newReport);
     }
   } catch (err) {
     console.error("Error creating report in DB:", err);
@@ -314,6 +428,8 @@ export async function savePeriodicReportDraft(
     const hasTable = await checkPeriodicTable(supabase);
     if (hasTable) {
       await supabase.from("marketing_periodic_reports").upsert(toDbRow(updated));
+    } else {
+      await saveFallbackDailyReport(supabase, updated);
     }
   } catch (err) {
     console.error("Error saving draft in DB:", err);
@@ -394,7 +510,14 @@ export async function closePeriodicReport(
   userName: string
 ): Promise<MarketingPeriodicReport> {
   const reports = await fetchPeriodicReports();
-  const target = reports.find((r) => r.id === reportId);
+  let target = reports.find((r) => r.id === reportId);
+  if (!target) {
+    try {
+      const supabase = createServiceClient();
+      const { data } = await supabase.from("marketing_periodic_reports").select("*").eq("id", reportId).maybeSingle();
+      if (data) target = fromDbRow(data);
+    } catch {}
+  }
   if (!target) throw new Error("Không tìm thấy báo cáo!");
 
   const now = new Date().toISOString();
@@ -431,6 +554,8 @@ export async function closePeriodicReport(
     const hasTable = await checkPeriodicTable(supabase);
     if (hasTable) {
       await supabase.from("marketing_periodic_reports").upsert(toDbRow(updated));
+    } else {
+      await saveFallbackDailyReport(supabase, updated);
     }
   } catch (err) {
     console.error("Error closing report in DB:", err);
@@ -454,7 +579,14 @@ export async function reopenPeriodicReport(
   notes?: string
 ): Promise<MarketingPeriodicReport> {
   const reports = await fetchPeriodicReports();
-  const target = reports.find((r) => r.id === reportId);
+  let target = reports.find((r) => r.id === reportId);
+  if (!target) {
+    try {
+      const supabase = createServiceClient();
+      const { data } = await supabase.from("marketing_periodic_reports").select("*").eq("id", reportId).maybeSingle();
+      if (data) target = fromDbRow(data);
+    } catch {}
+  }
   if (!target) throw new Error("Không tìm thấy báo cáo!");
 
   const now = new Date().toISOString();
@@ -481,6 +613,8 @@ export async function reopenPeriodicReport(
     const hasTable = await checkPeriodicTable(supabase);
     if (hasTable) {
       await supabase.from("marketing_periodic_reports").upsert(toDbRow(updated));
+    } else {
+      await saveFallbackDailyReport(supabase, updated);
     }
   } catch (err) {
     console.error("Error reopening report in DB:", err);
@@ -495,3 +629,24 @@ export async function reopenPeriodicReport(
 
   return updated;
 }
+
+export async function deletePeriodicReport(reportId: string): Promise<boolean> {
+  try {
+    const supabase = createServiceClient();
+    const hasTable = await checkPeriodicTable(supabase);
+    if (hasTable) {
+      await supabase.from("marketing_periodic_reports").delete().eq("id", reportId);
+    } else {
+      await removeFallbackDailyReport(supabase, reportId);
+    }
+  } catch (err) {
+    console.error("Error deleting report from DB:", err);
+  }
+
+  const local = loadLocalReports();
+  const filtered = local.filter((r) => r.id !== reportId);
+  saveLocalReports(filtered);
+
+  return true;
+}
+

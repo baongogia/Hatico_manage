@@ -12,6 +12,7 @@ import {
   refreshPeriodicReportData,
   closePeriodicReport,
   reopenPeriodicReport,
+  deletePeriodicReport,
 } from "@/lib/periodic-marketing-storage";
 
 export async function fetchPeriodicReportsAction(
@@ -110,3 +111,17 @@ export async function reopenPeriodicReportAction(reportId: string, notes?: strin
     return { error: err.message || "Lỗi khi mở lại báo cáo" };
   }
 }
+
+export async function deletePeriodicReportAction(reportId: string) {
+  try {
+    const user = await getSessionUser();
+    if (!user) return { error: "Chưa đăng nhập!" };
+
+    await deletePeriodicReport(reportId);
+    return { success: true };
+  } catch (err: any) {
+    console.error("deletePeriodicReportAction error:", err);
+    return { error: err.message || "Lỗi khi xóa báo cáo" };
+  }
+}
+
