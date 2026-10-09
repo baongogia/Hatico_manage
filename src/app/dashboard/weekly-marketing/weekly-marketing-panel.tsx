@@ -275,7 +275,7 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
   };
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col overflow-hidden gap-3 print:h-auto print:overflow-visible">
+    <div className="flex flex-1 min-h-0 flex-col overflow-hidden print:h-auto print:overflow-visible bg-white">
       {/* Toast Alert */}
       {notification && (
         <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-[4px] shadow-xl flex items-center gap-2 animate-slide-in no-print">
@@ -285,9 +285,9 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
       )}
 
       {/* Main 2-Column Layout */}
-      <div className="flex flex-1 min-h-0 flex-col sm:flex-row gap-3 overflow-hidden print:h-auto print:overflow-visible">
+      <div className="flex flex-1 min-h-0 flex-col sm:flex-row overflow-hidden print:h-auto print:overflow-visible">
         {/* ================= LEFT HISTORY SIDEBAR ================= */}
-        <aside className="w-full sm:w-64 lg:w-72 shrink-0 flex flex-col bg-white rounded-[4px] border border-slate-200/90 shadow-2xs overflow-hidden no-print">
+        <aside className="w-full sm:w-64 lg:w-72 shrink-0 flex flex-col bg-white border-r border-slate-200/90 overflow-hidden no-print">
           {/* 1. Mode Switcher: Tuần / Tháng */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/70 shrink-0">
             <div className="grid grid-cols-2 gap-1 p-0.5 bg-slate-200/70 rounded-[4px]">
@@ -418,7 +418,7 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
         </aside>
 
         {/* ================= RIGHT MAIN CONTENT AREA ================= */}
-        <main className="flex-1 min-h-0 flex flex-col bg-white rounded-[4px] border border-slate-200/90 shadow-2xs overflow-hidden print:border-none print:shadow-none print:overflow-visible">
+        <main className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden print:border-none print:shadow-none print:overflow-visible">
           {/* Empty state when no report selected */}
           {!selectedReport ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">

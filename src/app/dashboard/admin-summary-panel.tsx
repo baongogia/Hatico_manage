@@ -287,7 +287,7 @@ export function AdminSummaryPanel({
   return (
     <>
       <div
-        className={`no-print flex-1 min-h-0 flex flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/92 shadow-[0_8px_32px_rgba(15,45,89,0.08)] transition-opacity duration-200 ${
+        className={`no-print flex-1 min-h-0 flex flex-col overflow-hidden bg-white transition-opacity duration-200 ${
           isPending ? "opacity-70 pointer-events-none" : "opacity-100"
         }`}
       >

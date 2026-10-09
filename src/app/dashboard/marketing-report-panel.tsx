@@ -550,7 +550,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   const isKpiViewsPassed = conditionsMet >= 2;
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white relative">
       {/* Saving Overlay Indicator */}
       {isSaving && (
         <div className="absolute top-3 right-4 z-30 flex items-center gap-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-md shadow-lg backdrop-blur-xs animate-fade-in">

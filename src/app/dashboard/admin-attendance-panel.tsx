@@ -708,7 +708,7 @@ export function AdminAttendancePanel({
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
       {/* Tab bar and header controls */}
       <div className="border-b border-slate-200/90 px-4 py-2.5 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-white">
         <div className="inline-flex items-center p-0.5 bg-slate-100 rounded-md border border-slate-200/60 self-start shrink-0">

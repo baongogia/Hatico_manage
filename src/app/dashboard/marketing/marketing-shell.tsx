@@ -234,7 +234,7 @@ export function MarketingShell({
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(15,45,89,0.3),rgba(255,255,255,0))]" />
 
       {/* Top Header Bar */}
-      <header className="relative z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 py-2.5 flex items-center justify-between shrink-0 shadow-xs">
+      <header className="relative z-20 h-13 sm:h-14 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 flex items-center justify-between shrink-0 shadow-xs">
         <div className="flex items-center gap-3">
           {/* Mobile hamburger button */}
           <button
@@ -248,14 +248,14 @@ export function MarketingShell({
             </svg>
           </button>
 
-          <Link href="/dashboard" className="flex items-center group">
+          <Link href="/dashboard" className="flex items-center group py-0.5">
             <Image
               src="/logo/hatico_logo.png"
               alt="Hatico Logo"
-              width={140}
-              height={55}
+              width={160}
+              height={60}
               priority
-              className="h-7 sm:h-8 w-auto max-w-[130px] object-contain object-left shrink-0"
+              className="h-9 sm:h-10.5 w-auto max-w-[160px] object-contain object-left shrink-0 transition-transform duration-150 group-hover:scale-[1.02]"
             />
           </Link>
 
@@ -418,11 +418,32 @@ export function MarketingShell({
         )}
 
         {/* Workspace Content Area */}
-        <main className="flex-1 min-h-0 flex flex-col overflow-y-auto bg-slate-50 p-3 sm:p-5">
-          <div className="w-full max-w-7xl mx-auto flex flex-col flex-1 min-h-0">
-            {children}
-          </div>
-        </main>
+        {(() => {
+          const isEdgeToEdge =
+            activeView === "attendance" ||
+            activeView === "posts" ||
+            activeView === "weekly" ||
+            activeView === "calls" ||
+            activeView === "summary";
+
+          return (
+            <main
+              className={`flex-1 min-h-0 flex flex-col ${
+                isEdgeToEdge
+                  ? "p-0 overflow-hidden bg-white"
+                  : "p-3 sm:p-5 overflow-y-auto bg-slate-50"
+              }`}
+            >
+              <div
+                className={`w-full flex flex-col flex-1 min-h-0 ${
+                  isEdgeToEdge ? "h-full" : "max-w-[1600px] mx-auto"
+                }`}
+              >
+                {children}
+              </div>
+            </main>
+          );
+        })()}
       </div>
     </div>
   );
