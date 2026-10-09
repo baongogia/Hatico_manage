@@ -225,7 +225,7 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                 activeTab === "summary" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Tab A: Tổng hợp hiệu quả
+              Tổng hợp hiệu quả
             </button>
             <button
               type="button"
@@ -234,7 +234,7 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                 activeTab === "contents" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Tab B: Danh sách nội dung ({filteredItems.length})
+              Danh sách nội dung ({filteredItems.length})
             </button>
           </div>
 
