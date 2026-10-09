@@ -8,7 +8,7 @@ interface PageProps {
 /** Giữ URL cũ — chuyển sang dashboard client-side (mượt hơn). */
 export default async function AdminPage({ searchParams }: PageProps) {
   const user = await getSessionUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/dashboard");
   if (user.role !== "admin") redirect("/dashboard");
 
   const resolvedParams = await searchParams;

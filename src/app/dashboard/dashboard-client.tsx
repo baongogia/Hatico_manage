@@ -3,26 +3,18 @@
 import { useState, useTransition, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import {
-  logoutUser,
   getAdminDashboardData,
   DailyReport,
   Profile,
   AdminDashboardData,
   CallReportRow,
 } from "../actions";
-import { glassPanel, layoutGap, layoutPad } from "@/lib/glass-styles";
-import { hasWorkTasks, isSalesDepartment, splitReportItems, isMarketingDepartment } from "@/lib/report-data";
-import { CallReportPanel } from "./call-report-panel";
-import LiveClock from "./live-clock";
-import PageBackground from "./page-background";
+import { isSalesDepartment, isMarketingDepartment } from "@/lib/report-data";
 import { AdminSummarySkeleton } from "./admin-summary-skeleton";
-import { NavTabs } from "./nav-tabs";
-import { ReportStatusIndicator } from "./report-status-indicator";
+import { MarketingShell, MainDashboardView } from "./marketing/marketing-shell";
 
-type DashboardTab = "work" | "calls" | "summary" | "attendance" | "marketing";
-
+// Dynamic sub-panels for peak performance
 const AdminSummaryPanel = dynamic(
   () => import("./admin-summary-panel").then((m) => m.AdminSummaryPanel),
   { loading: () => <AdminSummarySkeleton /> },
@@ -38,6 +30,23 @@ const MarketingReportPanel = dynamic(
   { loading: () => <AdminSummarySkeleton /> },
 );
 
+const WeeklyMarketingPanel = dynamic(
+  () => import("./weekly-marketing/weekly-marketing-panel").then((m) => m.WeeklyMarketingPanel),
+  { loading: () => <AdminSummarySkeleton /> },
+);
+
+const CallReportPanel = dynamic(
+  () => import("./call-report-panel").then((m) => m.CallReportPanel),
+  { loading: () => <AdminSummarySkeleton /> },
+);
+
+// Marketing channels and features
+import { MarketingOverview } from "./marketing/overview/marketing-overview";
+import { ChannelReportPanel } from "./marketing/channel/channel-report-panel";
+import { CampaignPanel } from "./marketing/campaigns/campaign-panel";
+import { LeadsPanel } from "./marketing/leads/leads-panel";
+import { BranchesPanel } from "./marketing/branches/branches-panel";
+
 interface DashboardClientProps {
   initialData: {
     role: string;
@@ -47,7 +56,7 @@ interface DashboardClientProps {
     employees?: Profile[];
     date?: string;
   };
-  initialTab?: DashboardTab;
+  initialTab?: string;
   initialAdminData?: AdminDashboardData | null;
   notice?: string;
 }
@@ -55,7 +64,7 @@ interface DashboardClientProps {
 const NOTICE_MESSAGES: Record<string, { title: string; message: string }> = {
   submitted: {
     title: "Gửi báo cáo thành công",
-    message: "Báo cáo của bạn đã được lưu.",
+    message: "Báo cáo của bạn đã được lưu vào hệ thống.",
   },
 };
 
@@ -68,48 +77,25 @@ export default function DashboardClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const { role, profile, reports: initialReports = [], callReports = [] } = initialData;
+  const { role, profile, callReports = [] } = initialData;
   const isAdmin = role === "admin";
-  const isSales = isSalesDepartment(profile.department?.name);
   const isMarketing = isMarketingDepartment(profile.department?.name);
 
-  const resolvedInitialTab = initialTab ?? (
-    isAdmin ? "attendance" : (isMarketing ? "marketing" : "work")
-  );
+  // Map incoming tab/view to valid MainDashboardView
+  const resolveView = (tab?: string): MainDashboardView => {
+    if (!tab) {
+      return isAdmin ? "overview" : (isMarketing ? "posts" : "weekly");
+    }
+    if (tab === "marketing") return "posts";
+    if (tab === "work") return "weekly";
+    return tab as MainDashboardView;
+  };
 
-  const [activeTab, setActiveTab] = useState<DashboardTab>(resolvedInitialTab);
+  const [activeView, setActiveView] = useState<MainDashboardView>(() => resolveView(initialTab));
   const [adminData, setAdminData] = useState<AdminDashboardData | null>(initialAdminData);
   const [adminLoading, startAdminLoad] = useTransition();
 
-  const syncTabUrl = useCallback((tab: DashboardTab) => {
-    const isDefault =
-      role === "admin"
-        ? tab === "attendance"
-        : isMarketing
-          ? tab === "marketing"
-          : tab === "work";
-    const url = isDefault ? "/dashboard" : `/dashboard?view=${tab}`;
-    window.history.replaceState(null, "", url);
-  }, [role, isMarketing]);
-
-  const mainTabOptions = isAdmin
-    ? [
-        { value: "attendance" as const, label: "Báo cáo điểm danh", shortLabel: "Điểm danh" },
-        { value: "marketing" as const, label: "Báo cáo Marketing", shortLabel: "Marketing" },
-        { value: "work" as const, label: "Báo cáo công việc", shortLabel: "Công việc" },
-        ...(isSales
-          ? [{ value: "calls" as const, label: "Báo cáo cuộc gọi", shortLabel: "Cuộc gọi" }]
-          : []),
-        { value: "summary" as const, label: "Tổng hợp", shortLabel: "Tổng hợp" },
-      ]
-    : [
-        ...(isMarketing
-          ? [{ value: "marketing" as const, label: "Báo cáo Marketing", shortLabel: "Marketing" }]
-          : []),
-        { value: "work" as const, label: "Báo cáo công việc", shortLabel: "Công việc" },
-        { value: "calls" as const, label: "Báo cáo cuộc gọi", shortLabel: "Cuộc gọi" },
-      ];
-
+  // Prefetch admin data if on admin view
   useEffect(() => {
     if (!isAdmin || adminData) return;
     const prefetch = () => {
@@ -118,30 +104,28 @@ export default function DashboardClient({
       });
     };
     if (typeof requestIdleCallback !== "undefined") {
-      const id = requestIdleCallback(prefetch, { timeout: 2500 });
+      const id = requestIdleCallback(prefetch, { timeout: 2000 });
       return () => cancelIdleCallback(id);
     }
-    const t = window.setTimeout(prefetch, 600);
+    const t = window.setTimeout(prefetch, 500);
     return () => window.clearTimeout(t);
   }, [isAdmin, adminData]);
 
-  const handleTabChange = (tab: DashboardTab) => {
-    if (tab === "summary" || tab === "attendance") {
-      setActiveTab(tab);
-      syncTabUrl(tab);
-      if (adminData) return;
-      startAdminLoad(async () => {
-        const result = await getAdminDashboardData();
-        if (!("error" in result)) setAdminData(result);
-      });
-      return;
-    }
-    setActiveTab(tab);
-    syncTabUrl(tab);
-  };
+  // Lazy load admin data when switching to attendance or summary
+  const handleViewChange = useCallback(
+    (view: MainDashboardView) => {
+      setActiveView(view);
+      const url = view === "overview" ? "/dashboard" : `/dashboard?view=${view}`;
+      window.history.replaceState(null, "", url);
 
-  const [selectedReport, setSelectedReport] = useState<DailyReport | null>(
-    null,
+      if ((view === "attendance" || view === "summary") && !adminData) {
+        startAdminLoad(async () => {
+          const result = await getAdminDashboardData();
+          if (!("error" in result)) setAdminData(result);
+        });
+      }
+    },
+    [adminData],
   );
 
   // Custom Alert Modal state
@@ -165,295 +149,94 @@ export default function DashboardClient({
     window.history.replaceState(null, "", "/dashboard");
   }, [notice]);
 
-  // Handle logout
-  const handleLogout = async () => {
-    await logoutUser();
-    localStorage.removeItem("hatico_user_session");
-    router.replace("/login");
-  };
-
-  // Handle date change
+  // Handle data reload
   const handleReload = () => {
     startTransition(() => {
+      if (isAdmin && (activeView === "attendance" || activeView === "summary")) {
+        getAdminDashboardData().then((result) => {
+          if (!("error" in result)) setAdminData(result);
+        });
+      }
       router.refresh();
     });
   };
 
-  const formatDateDisplay = (dateString: string) => {
-    if (!dateString) return "";
-    const [year, month, day] = dateString.split("-");
-    return `${day}/${month}/${year}`;
-  };
-
-  const canUsePersonalReports = role === "employee" || role === "admin";
-
-  const todayStr = new Date().toISOString().split("T")[0];
-  const workReports = canUsePersonalReports
-    ? initialReports.filter((r) => hasWorkTasks(r.tasks_data))
-    : [];
-  const todayReport = workReports.find((r) => r.report_date === todayStr) ?? null;
-
-  const header = (
-    <header
-      className="bg-white rounded-xl border border-slate-200 px-4 py-2 flex items-center justify-between shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.03)] no-print"
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        <Image
-          src="/logo/hatico_logo.png"
-          alt="Hatico Logo"
-          width={150}
-          height={65}
-          priority
-          className="h-8 sm:h-8.5 w-auto max-w-[140px] object-contain object-left shrink-0"
-        />
-        <div className="border-l border-slate-200 pl-3 min-w-0">
-          <LiveClock />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <div className="text-right text-[11px] leading-tight hidden sm:block">
-          <p className="font-semibold text-slate-900 text-xs">{profile.full_name}</p>
-          <p className="text-slate-500 text-[11px] mt-0.5">
-            {profile.department?.name}
-            {profile.department?.branch &&
-              ` · ${profile.department.branch.name}`}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
-          <button
-            onClick={handleReload}
-            disabled={isPending}
-            title="Tải lại dữ liệu"
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 disabled:opacity-50 transition-colors cursor-pointer"
-          >
-            <svg
-              className={`w-3.5 h-3.5 ${isPending ? "animate-spin" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
-
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 text-slate-600 hover:text-rose-600 px-2.5 py-1.5 rounded-lg border border-slate-200/80 bg-slate-50 hover:bg-rose-50/60 hover:border-rose-200 text-xs font-medium transition-colors cursor-pointer"
-          >
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 16l4-4m0 0l-4-4m4 4H7"
-              />
-            </svg>
-            <span>Thoát</span>
-          </button>
-        </div>
-      </div>
-    </header>
-  );
-
   return (
-    <div className="flex flex-col h-[100dvh] min-h-[100dvh] overflow-hidden font-sans relative print:h-auto print:overflow-visible print:bg-white">
-      {canUsePersonalReports ? (
-        <>
-          <PageBackground />
-
-          <div
-            className={`relative z-10 flex flex-col h-full min-h-0 overflow-hidden print:h-auto print:min-h-0 print:overflow-visible ${layoutPad} ${layoutGap} max-sm:pt-[calc(12px+env(safe-area-inset-top,0px))] max-sm:pb-[max(12px,env(safe-area-inset-bottom,0px))] print:p-0 print:gap-0`}
-          >
-            {header}
-
-            {(isAdmin || isSales || isMarketing) && (
-              <NavTabs
-                variant="glass"
-                ariaLabel="Chọn chức năng"
-                value={activeTab}
-                onChange={handleTabChange}
-                disabled={adminLoading}
-                options={mainTabOptions}
-              />
-            )}
-
-            {activeTab === "summary" ? (
-              adminLoading && !adminData ? (
-                <AdminSummarySkeleton />
-              ) : adminData ? (
-                <AdminSummaryPanel initialData={adminData} onDataUpdate={setAdminData} />
-              ) : (
-                <AdminSummarySkeleton />
-              )
-            ) : activeTab === "attendance" ? (
-              adminLoading && !adminData ? (
-                <AdminSummarySkeleton />
-              ) : adminData ? (
-                <AdminAttendancePanel initialData={adminData} onDataUpdate={setAdminData} />
-              ) : (
-                <AdminSummarySkeleton />
-              )
-            ) : activeTab === "calls" ? (
-              <CallReportPanel profile={profile} initialCalls={callReports} />
-            ) : activeTab === "marketing" ? (
-              <MarketingReportPanel profile={profile} />
-            ) : (
-              <div className={`no-print flex flex-1 min-h-0 flex-col overflow-hidden min-w-0 ${layoutGap}`}>
-                <div className={`flex flex-1 min-h-0 max-sm:overflow-y-auto sm:overflow-hidden flex-col sm:flex-row ${layoutGap}`}>
-              <main className="flex flex-col shrink-0 sm:flex-1 sm:min-h-0 sm:overflow-y-auto order-1 sm:order-2">
-                <div className={`flex flex-col sm:flex-grow sm:min-h-0 ${layoutGap}`}>
-                  {selectedReport || todayReport ? (
-                    <div className={layoutGap}>
-                      {(() => {
-                        const displayReport = selectedReport || todayReport;
-                        if (!displayReport) return null;
-                        return (
-                          <div className={`${glassPanel} p-4 space-y-3`}>
-                            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                              <div>
-                                <h3 className="text-xs font-bold text-slate-900">
-                                  Báo cáo ngày{" "}
-                                  {formatDateDisplay(displayReport.report_date)}
-                                </h3>
-                                {displayReport.id === todayReport?.id && (
-                                  <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-lg font-bold mt-1 inline-block">
-                                    Báo cáo hôm nay
-                                  </span>
-                                )}
-                              </div>
-                              <ReportStatusIndicator
-                                hasReport={true}
-                                size="md"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <h4 className="text-[11px] font-bold text-primary uppercase tracking-wide">
-                                Đầu việc:
-                              </h4>
-                              <div className="flex flex-wrap gap-1.5">
-                                {splitReportItems(displayReport.tasks_data).tasks.map((task, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="bg-white/70 border border-slate-200/80 text-slate-900 text-xs font-semibold px-3 py-1.5 rounded-lg"
-                                  >
-                                    {task.title}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-200/80 flex gap-2">
-                              <button
-                                onClick={() =>
-                                  router.push(
-                                    `/dashboard/report?id=${displayReport.id}`,
-                                  )
-                                }
-                                className="bg-primary text-white hover:bg-primary-hover font-bold px-4 py-2 rounded-lg text-xs transition-colors cursor-pointer shadow-sm"
-                              >
-                                Chỉnh sửa báo cáo
-                              </button>
-                              {selectedReport && (
-                                <button
-                                  onClick={() => setSelectedReport(null)}
-                                  className="bg-white/70 border border-slate-300 text-slate-800 hover:bg-white font-bold px-4 py-2 rounded-lg text-xs transition-colors cursor-pointer"
-                                >
-                                  Xem báo cáo hôm nay
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  ) : (
-                    <div
-                      className={`${glassPanel} p-6 flex flex-col items-center justify-center text-center py-12`}
-                    >
-                      <ReportStatusIndicator hasReport={false} size="md" />
-                      <p className="text-slate-900 font-bold text-sm mt-3">
-                        Chưa có báo cáo hôm nay
-                      </p>
-                      <p className="text-slate-600 text-xs mt-1">
-                        Vui lòng viết báo cáo công việc hôm nay.
-                      </p>
-                      <button
-                        onClick={() => router.push("/dashboard/report")}
-                        className="bg-primary text-white hover:bg-primary-hover font-bold px-5 py-2.5 rounded-lg mt-4 transition-colors shadow-sm cursor-pointer text-xs"
-                      >
-                        Bắt đầu viết ngay
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </main>
-
-              <aside
-                className={`flex flex-col w-full sm:w-80 shrink-0 sm:min-h-0 sm:overflow-hidden order-2 sm:order-1 ${glassPanel}`}
-              >
-                <div className="p-3 border-b border-white/60 shrink-0">
-                  <h3 className="text-xs font-bold text-primary uppercase tracking-wider">
-                    Lịch sử báo cáo đã nộp
-                  </h3>
-                </div>
-                <div className="p-3 gap-2 flex flex-col sm:flex-grow sm:overflow-y-auto sm:min-h-0 no-scrollbar">
-                  {workReports.length === 0 ? (
-                    <p className="text-slate-600 text-xs italic p-2 text-center">
-                      Chưa nộp báo cáo nào
-                    </p>
-                  ) : (
-                    workReports.map((report) => (
-                      <div
-                        key={report.id}
-                        onClick={() => setSelectedReport(report)}
-                        className={`p-3 rounded-xl cursor-pointer transition-colors text-left flex items-center justify-between border ${
-                          selectedReport?.id === report.id
-                            ? "bg-white/75 border-primary/30 shadow-sm"
-                            : "bg-white/45 border-white/70 hover:bg-white/65"
-                        } backdrop-blur-sm`}
-                      >
-                        <div>
-                          <p className="text-xs font-bold text-slate-900">
-                            {formatDateDisplay(report.report_date)}
-                          </p>
-                          <p className="text-[10px] text-slate-600 mt-0.5">
-                            {splitReportItems(report.tasks_data).tasks.length} việc đã làm
-                          </p>
-                        </div>
-                        <ReportStatusIndicator hasReport={true} />
-                      </div>
-                    ))
-                  )}
-                </div>
-              </aside>
-                </div>
-              </div>
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          {header}
-          <div className="flex-grow h-[calc(100vh-5rem)] overflow-hidden bg-slate-50" />
-        </>
+    <MarketingShell
+      profile={profile}
+      activeView={activeView}
+      onViewChange={handleViewChange}
+      onReload={handleReload}
+      isPending={isPending || adminLoading}
+    >
+      {/* 1. Báo cáo điểm danh */}
+      {activeView === "attendance" && (
+        adminLoading && !adminData ? (
+          <AdminSummarySkeleton />
+        ) : adminData ? (
+          <AdminAttendancePanel initialData={adminData} onDataUpdate={setAdminData} />
+        ) : (
+          <AdminSummarySkeleton />
+        )
       )}
 
+      {/* 2. Báo cáo bài đăng (đồng bộ từ tab cũ sang UI mới) */}
+      {activeView === "posts" && <MarketingReportPanel profile={profile} />}
+
+      {/* 3. Báo cáo Marketing tuần */}
+      {activeView === "weekly" && <WeeklyMarketingPanel profile={profile} />}
+
+      {/* 4. Báo cáo cuộc gọi */}
+      {activeView === "calls" && (
+        <CallReportPanel profile={profile} initialCalls={callReports} />
+      )}
+
+      {/* 5. Báo cáo tổng hợp */}
+      {activeView === "summary" && (
+        adminLoading && !adminData ? (
+          <AdminSummarySkeleton />
+        ) : adminData ? (
+          <AdminSummaryPanel initialData={adminData} onDataUpdate={setAdminData} />
+        ) : (
+          <AdminSummarySkeleton />
+        )
+      )}
+
+      {/* 6. Phân hệ Marketing: Tổng quan đa kênh */}
+      {activeView === "overview" && <MarketingOverview />}
+
+      {/* 7. Phân hệ Marketing: Khách hàng Marketing tập trung */}
+      {activeView === "leads" && <LeadsPanel />}
+
+      {/* 8. Kênh mạng xã hội & Website */}
+      {activeView === "facebook" && (
+        <ChannelReportPanel platform="facebook" title="Báo cáo Facebook" />
+      )}
+      {activeView === "tiktok" && (
+        <ChannelReportPanel platform="tiktok" title="Báo cáo TikTok" />
+      )}
+      {activeView === "youtube" && (
+        <ChannelReportPanel platform="youtube" title="Báo cáo YouTube" />
+      )}
+      {activeView === "website" && (
+        <ChannelReportPanel platform="website" title="Báo cáo Website" />
+      )}
+
+      {/* 9. Chiến dịch quảng cáo Ads */}
+      {activeView === "facebook_ads" && (
+        <CampaignPanel platform="facebook_ads" title="Chiến dịch Facebook Ads" />
+      )}
+      {activeView === "tiktok_ads" && (
+        <CampaignPanel platform="tiktok_ads" title="Chiến dịch TikTok Ads" />
+      )}
+
+      {/* 10. Phân tích chi nhánh */}
+      {activeView === "branches" && <BranchesPanel />}
+
+      {/* Custom Notification Modal */}
       {alertModal.show && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs flex items-center justify-center z-50 p-3 no-print">
-          <div className="bg-white p-4 rounded-lg shadow-xl max-w-xs w-full space-y-3 animate-slide-in">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-3 no-print">
+          <div className="bg-white p-4 rounded-[4px] shadow-xl max-w-xs w-full space-y-3 animate-slide-in">
             <h3 className="font-bold text-slate-800 text-sm">
               {alertModal.title}
             </h3>
@@ -462,10 +245,11 @@ export default function DashboardClient({
             </p>
             <div className="flex justify-end">
               <button
+                type="button"
                 onClick={() =>
                   setAlertModal({ show: false, title: "", message: "" })
                 }
-                className="bg-primary hover:bg-primary-hover text-white font-bold text-xs px-3.5 py-1.5 rounded-lg cursor-pointer transition-colors"
+                className="bg-primary hover:bg-primary-hover text-white font-bold text-xs px-3.5 py-1.5 rounded-[4px] cursor-pointer transition-colors"
               >
                 Đồng ý
               </button>
@@ -473,6 +257,6 @@ export default function DashboardClient({
           </div>
         </div>
       )}
-    </div>
+    </MarketingShell>
   );
 }

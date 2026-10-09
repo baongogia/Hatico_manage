@@ -269,37 +269,57 @@ export async function loginWithStaff(
   };
 }
 
-// Helper to get session from cookies
+// Helper to get session from cookies (defaults to admin)
 export async function getSessionUser() {
   const cookieStore = await cookies();
   const userId = cookieStore.get("hatico_user_id")?.value;
-  if (!userId) return null;
 
   const supabase = createServiceClient();
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select(`
+  const profileQuery = `
+    id,
+    full_name,
+    role,
+    department_id,
+    departments (
       id,
-      full_name,
-      role,
-      department_id,
-      departments (
+      name,
+      branch_id,
+      branches (
         id,
         name,
-        branch_id,
-        branches (
-          id,
-          name,
-          code
-        )
+        code
       )
-    `)
-    .eq("id", userId)
-    .single();
+    )
+  `;
 
-  if (error || !profile) {
-    console.error("Error fetching session profile:", error);
-    return null;
+  let profile = null;
+
+  if (userId) {
+    const { data } = await supabase
+      .from("profiles")
+      .select(profileQuery)
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (data && data.role === "admin") {
+      profile = data;
+    }
+  }
+
+  // Fallback to default admin profile
+  if (!profile) {
+    const { data: adminProfile, error: adminErr } = await supabase
+      .from("profiles")
+      .select(profileQuery)
+      .eq("role", "admin")
+      .limit(1)
+      .maybeSingle();
+
+    if (adminErr || !adminProfile) {
+      console.error("Error fetching default admin profile:", adminErr);
+      return null;
+    }
+    profile = adminProfile;
   }
 
   // Map nested objects to match interface
