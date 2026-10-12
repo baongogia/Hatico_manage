@@ -248,8 +248,8 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
     const originalTitle = document.title;
     const filename =
       selectedReport.reportType === "weekly"
-        ? `HATICO_BAO_CAO_MARKETING_TUAN_${selectedReport.periodNumber}_${selectedReport.year}`
-        : `HATICO_BAO_CAO_MARKETING_THANG_${selectedReport.periodNumber}_${selectedReport.year}`;
+        ? `HATICO_MARKETING_WEEK_${selectedReport.periodNumber}_${selectedReport.year}`
+        : `HATICO_MARKETING_MONTH_${selectedReport.periodNumber}_${selectedReport.year}`;
 
     document.title = filename;
     window.print();

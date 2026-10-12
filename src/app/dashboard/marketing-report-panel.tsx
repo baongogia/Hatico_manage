@@ -75,7 +75,8 @@ type MarketingReportPanelProps = {
 function toEditablePostRows(posts: MarketingPostRow[]): EditablePostRow[] {
   return posts.map((post, i) => ({
     ...post,
-    rowId: `${post.report_id}-${post.report_date}-${i}`,
+    id: post.id,
+    rowId: post.id || `${post.report_id}-${post.report_date}-${i}`,
   }));
 }
 
@@ -97,9 +98,11 @@ function togglePlatform(currentPlatforms: string, platformToToggle: string) {
 }
 
 function newEmptyPostRow(todayStr: string): EditablePostRow {
+  const newId = crypto.randomUUID();
   return {
     type: "marketing_post",
-    rowId: `new-post-${crypto.randomUUID()}`,
+    id: newId,
+    rowId: `new-post-${newId}`,
     report_id: "",
     report_date: todayStr,
     platform: "Tiktok",

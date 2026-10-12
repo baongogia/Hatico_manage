@@ -1938,6 +1938,7 @@ export async function saveMarketingReports(params: {
   const postEntries: MarketingPostEntry[] = params.posts
     .filter((p) => p.title.trim())
     .map((p) => ({
+      id: p.id || crypto.randomUUID(),
       type: "marketing_post" as const,
       platform: p.platform,
       title: p.title.trim(),
@@ -1947,6 +1948,10 @@ export async function saveMarketingReports(params: {
       comments: p.comments.trim(),
       shares: p.shares.trim(),
       status: p.status,
+      topic: p.topic,
+      content_type: p.content_type,
+      branch_id: p.branch_id,
+      author_id: p.author_id,
     }));
 
   const eventEntries: MarketingEventEntry[] = params.events

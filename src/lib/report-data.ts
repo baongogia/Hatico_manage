@@ -17,6 +17,7 @@ export interface CallReportEntry {
 
 export interface MarketingPostEntry {
   type: "marketing_post";
+  id?: string;
   platform: string;
   title: string;
   link: string;
@@ -25,6 +26,10 @@ export interface MarketingPostEntry {
   comments: string;
   shares: string;
   status: "completed" | "in_progress" | "pending";
+  topic?: string;
+  content_type?: string;
+  branch_id?: string;
+  author_id?: string;
 }
 
 export interface MarketingEventEntry {

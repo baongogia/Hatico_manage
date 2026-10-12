@@ -41,7 +41,11 @@ async function loadFallbackDailyReports(
   supabase: ReturnType<typeof createServiceClient>
 ): Promise<MarketingPeriodicReport[]> {
   try {
-    const { data: reports } = await supabase.from("daily_reports").select("tasks_data");
+    const { data: reports } = await supabase
+      .from("daily_reports")
+      .select("tasks_data")
+      .order("report_date", { ascending: false })
+      .limit(3000);
     const list: MarketingPeriodicReport[] = [];
     for (const r of reports || []) {
       const tasks = Array.isArray(r.tasks_data) ? r.tasks_data : [];
@@ -95,8 +99,8 @@ async function saveFallbackDailyReport(
     }
 
     if (dr) {
-      const tasks: any[] = Array.isArray(dr.tasks_data) ? [...dr.tasks_data] : [];
-      const idx = tasks.findIndex((t) => t.type === "marketing_periodic_report_record" && t.report?.id === report.id);
+      const tasks: Record<string, unknown>[] = Array.isArray(dr.tasks_data) ? (dr.tasks_data as Record<string, unknown>[]) : [];
+      const idx = tasks.findIndex((t) => t.type === "marketing_periodic_report_record" && (t.report as MarketingPeriodicReport)?.id === report.id);
       const entry = { type: "marketing_periodic_report_record", report };
       if (idx >= 0) tasks[idx] = entry;
       else tasks.push(entry);
@@ -116,11 +120,16 @@ async function removeFallbackDailyReport(
 ): Promise<void> {
   serverReportsCache.delete(reportId);
   try {
-    const { data: reports } = await supabase.from("daily_reports").select("id, tasks_data");
+    const { data: reports } = await supabase
+      .from("daily_reports")
+      .select("id, tasks_data")
+      .order("report_date", { ascending: false })
+      .limit(3000);
     for (const r of reports || []) {
       if (!Array.isArray(r.tasks_data)) continue;
-      const filtered = r.tasks_data.filter(
-        (t: any) => !(t.type === "marketing_periodic_report_record" && t.report?.id === reportId)
+      const tasks = r.tasks_data as Record<string, unknown>[];
+      const filtered = tasks.filter(
+        (t) => !(t.type === "marketing_periodic_report_record" && (t.report as MarketingPeriodicReport)?.id === reportId)
       );
       if (filtered.length !== r.tasks_data.length) {
         await supabase
@@ -191,7 +200,8 @@ function toDbRow(rep: MarketingPeriodicReport) {
   };
 }
 
-function fromDbRow(row: any): MarketingPeriodicReport {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function fromDbRow(row: Record<string, any>): MarketingPeriodicReport {
   return {
     id: row.id,
     reportType: row.report_type as PeriodicReportType,

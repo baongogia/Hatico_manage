@@ -4,6 +4,7 @@ import React, { useState, useEffect, useTransition } from "react";
 import {
   AdPlatform,
   MarketingCampaignItem,
+  MarketingLeadItem,
   CampaignStatus,
   CAMPAIGN_STATUS_LABELS,
   HATICO_BRANCHES,
@@ -13,6 +14,7 @@ import {
   getMarketingCampaignsAction,
   saveMarketingCampaignAction,
   deleteMarketingCampaignAction,
+  getMarketingLeadsAction,
 } from "@/app/actions-marketing";
 import { CustomSelect } from "@/components/custom-select";
 
@@ -21,13 +23,54 @@ interface CampaignPanelProps {
   title: string;
 }
 
+type PresetRange = "this_month" | "last_month" | "7days" | "all" | "custom";
+
+const getMonthRange = (offsetMonths = 0) => {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + offsetMonths, 1);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const lastDay = new Date(yyyy, d.getMonth() + 1, 0).getDate();
+  const dd = String(lastDay).padStart(2, "0");
+  return { start: `${yyyy}-${mm}-01`, end: `${yyyy}-${mm}-${dd}` };
+};
+
 export function CampaignPanel({ platform, title }: CampaignPanelProps) {
   const [campaigns, setCampaigns] = useState<MarketingCampaignItem[]>([]);
+  const [leads, setLeads] = useState<MarketingLeadItem[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [presetRange, setPresetRange] = useState<PresetRange>("this_month");
+  const [startDate, setStartDate] = useState<string>(() => getMonthRange(0).start);
+  const [endDate, setEndDate] = useState<string>(() => getMonthRange(0).end);
+
+  const handlePresetChange = (preset: PresetRange) => {
+    setPresetRange(preset);
+    const now = new Date();
+    if (preset === "this_month") {
+      const r = getMonthRange(0);
+      setStartDate(r.start);
+      setEndDate(r.end);
+    } else if (preset === "last_month") {
+      const r = getMonthRange(-1);
+      setStartDate(r.start);
+      setEndDate(r.end);
+    } else if (preset === "7days") {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const nowY = now.getFullYear();
+      const nowM = String(now.getMonth() + 1).padStart(2, "0");
+      const nowD = String(now.getDate()).padStart(2, "0");
+      setStartDate(`${yyyy}-${mm}-${dd}`);
+      setEndDate(`${nowY}-${nowM}-${nowD}`);
+    } else if (preset === "all") {
+      setStartDate("");
+      setEndDate("");
+    }
+  };
 
   const [isPending, startTransition] = useTransition();
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -47,10 +90,6 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
   const [formActualCost, setFormActualCost] = useState<number | string>(0);
   const [formReachOrViews, setFormReachOrViews] = useState<number | string>(0);
   const [formInteractions, setFormInteractions] = useState<number | string>(0);
-  const [formLeads, setFormLeads] = useState<number | string>(0);
-  const [formConsulted, setFormConsulted] = useState<number | string>(0);
-  const [formConverted, setFormConverted] = useState<number | string>(0);
-  const [formOrders, setFormOrders] = useState<number | string>(0);
   const [formStatus, setFormStatus] = useState<CampaignStatus>("running");
   const [formNotes, setFormNotes] = useState("");
 
@@ -61,14 +100,25 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
 
   const loadCampaigns = () => {
     startTransition(async () => {
-      const res = await getMarketingCampaignsAction(
-        platform,
-        selectedBranch === "all" ? undefined : selectedBranch,
-        startDate || undefined,
-        endDate || undefined
-      );
-      if (res.data) {
-        setCampaigns(res.data);
+      const [campRes, leadsRes] = await Promise.all([
+        getMarketingCampaignsAction(
+          platform,
+          selectedBranch === "all" ? undefined : selectedBranch,
+          startDate || undefined,
+          endDate || undefined
+        ),
+        getMarketingLeadsAction(
+          undefined,
+          selectedBranch === "all" ? undefined : selectedBranch,
+          startDate || undefined,
+          endDate || undefined
+        ),
+      ]);
+      if (campRes.data) {
+        setCampaigns(campRes.data);
+      }
+      if (leadsRes.data) {
+        setLeads(leadsRes.data);
       }
     });
   };
@@ -89,10 +139,6 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
     setFormActualCost(0);
     setFormReachOrViews(0);
     setFormInteractions(0);
-    setFormLeads(0);
-    setFormConsulted(0);
-    setFormConverted(0);
-    setFormOrders(0);
     setFormStatus("running");
     setFormNotes("");
     setShowModal(true);
@@ -110,10 +156,6 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
     setFormActualCost(c.actual_cost);
     setFormReachOrViews(platform === "facebook_ads" ? c.reach : c.views);
     setFormInteractions(c.interactions);
-    setFormLeads(c.leads_count);
-    setFormConsulted(c.consulted_count);
-    setFormConverted(c.converted_count);
-    setFormOrders(c.orders_count);
     setFormStatus(c.status);
     setFormNotes(c.notes || "");
     setShowModal(true);
@@ -140,10 +182,10 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
       reach: platform === "facebook_ads" ? Number(formReachOrViews) || 0 : 0,
       views: platform === "tiktok_ads" ? Number(formReachOrViews) || 0 : 0,
       interactions: Number(formInteractions) || 0,
-      leads_count: Number(formLeads) || 0,
-      consulted_count: Number(formConsulted) || 0,
-      converted_count: Number(formConverted) || 0,
-      orders_count: Number(formOrders) || 0,
+      leads_count: 0,
+      consulted_count: 0,
+      converted_count: 0,
+      orders_count: 0,
       status: formStatus,
       notes: formNotes.trim() || undefined,
     };
@@ -180,25 +222,39 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
     return true;
   });
 
+  const filteredCampaignIds = new Set(filtered.map((c) => c.id));
+  const adsLeads = leads.filter((l) => {
+    if (l.campaign_id && filteredCampaignIds.has(l.campaign_id)) return true;
+    if (l.source === platform) return true;
+    if (l.source_type === "ads") {
+      const src = (l.source || "").toLowerCase();
+      if (platform === "facebook_ads") return src.includes("facebook") || src.includes("fb");
+      if (platform === "tiktok_ads") return src.includes("tiktok");
+    }
+    return false;
+  });
+
   // Calculate Aggregates
   const totalCampaigns = filtered.length;
   const totalActualCost = filtered.reduce((s, c) => s + (Number(c.actual_cost) || 0), 0);
   const totalReachOrViews = filtered.reduce((s, c) => s + (platform === "facebook_ads" ? Number(c.reach) || 0 : Number(c.views) || 0), 0);
-  const totalLeads = filtered.reduce((s, c) => s + (Number(c.leads_count) || 0), 0);
-  const totalConsulted = filtered.reduce((s, c) => s + (Number(c.consulted_count) || 0), 0);
-  const totalConverted = filtered.reduce((s, c) => s + (Number(c.converted_count) || 0), 0);
-  const totalOrders = filtered.reduce((s, c) => s + (Number(c.orders_count) || 0), 0);
+  const totalLeads = adsLeads.length;
+  const totalConsulted = adsLeads.filter((l) => l.status === "consulted" || l.status === "converted" || l.status === "closed" || Boolean(l.consulted_at)).length;
+  const totalConverted = adsLeads.filter((l) => l.status === "converted" || l.status === "closed" || Boolean(l.converted_at)).length;
+  const totalOrders = adsLeads.filter((l) => l.status === "closed" || Boolean(l.order_id) || Boolean(l.closed_at)).length;
 
   // Safe CPL & Cost Per Order calculation
   const overallCPL = totalLeads > 0 ? Math.round(totalActualCost / totalLeads) : null;
   const overallCostPerOrder = totalOrders > 0 ? Math.round(totalActualCost / totalOrders) : null;
 
-  // Real-time calculation inside form
+  // Linked metrics for currently editing item
+  const editingCampLeads = editingItem ? leads.filter((l) => l.campaign_id === editingItem.id) : [];
+  const editingLeadsCount = editingCampLeads.length;
+  const editingConsultedCount = editingCampLeads.filter((l) => l.status === "consulted" || l.status === "converted" || l.status === "closed" || Boolean(l.consulted_at)).length;
+  const editingOrdersCount = editingCampLeads.filter((l) => l.status === "closed" || Boolean(l.order_id) || Boolean(l.closed_at)).length;
   const parsedFormCost = Number(formActualCost) || 0;
-  const parsedFormLeads = Number(formLeads) || 0;
-  const parsedFormOrders = Number(formOrders) || 0;
-  const computedFormCPL = parsedFormLeads > 0 ? Math.round(parsedFormCost / parsedFormLeads) : null;
-  const computedFormCostPerOrder = parsedFormOrders > 0 ? Math.round(parsedFormCost / parsedFormOrders) : null;
+  const computedFormCPL = editingLeadsCount > 0 ? Math.round(parsedFormCost / editingLeadsCount) : null;
+  const computedFormCostPerOrder = editingOrdersCount > 0 ? Math.round(parsedFormCost / editingOrdersCount) : null;
 
   const formatMoney = (val: number | null | undefined) => {
     if (val === null || val === undefined || isNaN(val)) return "—";
@@ -285,8 +341,48 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
       </div>
 
       {/* Filter Row */}
-      <div className="bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 text-xs">
+        {/* Preset Range row */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-slate-500 font-semibold mr-1">Khoảng thời gian:</span>
+            {(
+              [
+                { id: "this_month", label: "Tháng này" },
+                { id: "last_month", label: "Tháng trước" },
+                { id: "7days", label: "7 ngày qua" },
+                { id: "all", label: "Tất cả" },
+                { id: "custom", label: "Tùy chỉnh" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => handlePresetChange(t.id)}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                  presetRange === t.id
+                    ? "bg-primary text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <input
+              type="text"
+              placeholder="Tìm theo tên chiến dịch..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-56 px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+        </div>
+
+        {/* Detail Filter row */}
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-medium">Chi nhánh:</span>
             <CustomSelect
@@ -323,27 +419,23 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPresetRange("custom");
+              }}
               className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
             />
             <span className="text-slate-400">→</span>
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPresetRange("custom");
+              }}
               className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
             />
           </div>
-        </div>
-
-        <div>
-          <input
-            type="text"
-            placeholder="Tìm theo tên chiến dịch..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full sm:w-56 px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-          />
         </div>
       </div>
 
@@ -378,7 +470,15 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
               ) : (
                 filtered.map((c) => {
                   const bName = HATICO_BRANCHES.find((b) => b.id === c.branch_id)?.name || "Toàn quốc";
-                  const cpl = c.leads_count > 0 ? Math.round(c.actual_cost / c.leads_count) : null;
+                  const campLeads = leads.filter((l) => l.campaign_id === c.id);
+                  const leadsCount = campLeads.length;
+                  const consultedCount = campLeads.filter(
+                    (l) => l.status === "consulted" || l.status === "converted" || l.status === "closed" || Boolean(l.consulted_at)
+                  ).length;
+                  const ordersCount = campLeads.filter(
+                    (l) => l.status === "closed" || Boolean(l.order_id) || Boolean(l.closed_at)
+                  ).length;
+                  const cpl = leadsCount > 0 ? Math.round(c.actual_cost / leadsCount) : null;
                   const dateRange = c.end_date ? `${c.start_date} → ${c.end_date}` : `Từ ${c.start_date}`;
 
                   return (
@@ -402,13 +502,13 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
                         {formatNumber(platform === "facebook_ads" ? c.reach : c.views)}
                       </td>
                       <td className="py-2.5 px-3 text-center font-bold text-amber-600">
-                        {c.leads_count}
+                        {leadsCount}
                       </td>
                       <td className="py-2.5 px-3 text-center font-medium text-sky-700">
-                        {c.consulted_count}
+                        {consultedCount}
                       </td>
                       <td className="py-2.5 px-3 text-center font-bold text-emerald-700">
-                        {c.orders_count}
+                        {ordersCount}
                       </td>
                       <td className="py-2.5 px-3 text-right font-bold text-primary whitespace-nowrap">
                         {formatMoney(cpl)}
@@ -586,12 +686,12 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
               {/* Phần số liệu hiệu quả và tự động tính CPL */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <span className="text-[11px] font-bold text-slate-700 uppercase">
-                  Hiệu quả đo lường thực tế
+                  Hiệu quả đo lường tiếp cận
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-slate-500 text-[11px] font-medium mb-0.5">
-                      {platform === "facebook_ads" ? "Lượt tiếp cận" : "Lượt xem quảng cáo"}
+                      {platform === "facebook_ads" ? "Lượt tiếp cận" : "Lượt xem video quảng cáo"}
                     </label>
                     <input
                       type="number"
@@ -611,57 +711,26 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
                       className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
                     />
                   </div>
-                  <div>
-                    <label className="block text-slate-500 text-[11px] font-medium mb-0.5">Khách quan tâm</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formLeads}
-                      onChange={(e) => setFormLeads(e.target.value)}
-                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-amber-600 font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 text-[11px] font-medium mb-0.5">Đã tư vấn</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formConsulted}
-                      onChange={(e) => setFormConsulted(e.target.value)}
-                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 text-[11px] font-medium mb-0.5">Chuyển đổi</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formConverted}
-                      onChange={(e) => setFormConverted(e.target.value)}
-                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 text-[11px] font-medium mb-0.5">Đơn hàng chốt</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formOrders}
-                      onChange={(e) => setFormOrders(e.target.value)}
-                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-emerald-700 font-bold"
-                    />
-                  </div>
                 </div>
 
-                {/* Tự động tính CPL & Chi phí/đơn hiển thị ngay */}
-                <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs bg-white p-2 rounded-lg">
-                  <span className="text-slate-600">
-                    CPL dự tính: <strong className="text-primary font-bold">{formatMoney(computedFormCPL)}</strong>
-                  </span>
-                  <span className="text-slate-600">
-                    Chi phí / đơn chốt: <strong className="text-emerald-700 font-bold">{formatMoney(computedFormCostPerOrder)}</strong>
-                  </span>
-                </div>
+                {editingItem && (
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200/90 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between text-slate-700 font-semibold">
+                      <span>Dữ liệu khách hàng liên kết chiến dịch:</span>
+                      <span className="text-amber-600 font-bold">{editingLeadsCount} khách quan tâm</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                      <span>Đã tư vấn: <strong className="text-sky-700">{editingConsultedCount}</strong> | Đơn hàng chốt: <strong className="text-emerald-700">{editingOrdersCount}</strong></span>
+                      <span>
+                        CPL: <strong className="text-primary">{formatMoney(computedFormCPL)}</strong> | Chi phí/đơn: <strong className="text-emerald-700">{formatMoney(computedFormCostPerOrder)}</strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-slate-400 italic">
+                  * Khách hàng, đơn hàng, CPL và Chi phí/đơn được hệ thống tự động cập nhật từ phân hệ Khách hàng Marketing gắn theo Chiến dịch này.
+                </p>
               </div>
 
               <div>

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useTransition } from "react";
 import {
   MarketingPlatform,
   MarketingContentItem,
+  MarketingLeadItem,
   HATICO_BRANCHES,
   HATICO_FANPAGES,
 } from "@/lib/marketing-types";
@@ -11,6 +12,7 @@ import {
   getMarketingContentsAction,
   saveMarketingContentAction,
   deleteMarketingContentAction,
+  getMarketingLeadsAction,
 } from "@/app/actions-marketing";
 import { CustomSelect } from "@/components/custom-select";
 
@@ -19,14 +21,55 @@ interface ChannelReportPanelProps {
   title: string;
 }
 
+type PresetRange = "this_month" | "last_month" | "7days" | "all" | "custom";
+
+const getMonthRange = (offsetMonths = 0) => {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + offsetMonths, 1);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const lastDay = new Date(yyyy, d.getMonth() + 1, 0).getDate();
+  const dd = String(lastDay).padStart(2, "0");
+  return { start: `${yyyy}-${mm}-01`, end: `${yyyy}-${mm}-${dd}` };
+};
+
 export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps) {
   const [activeTab, setActiveTab] = useState<"summary" | "contents">("summary");
   const [items, setItems] = useState<MarketingContentItem[]>([]);
+  const [leads, setLeads] = useState<MarketingLeadItem[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [selectedFanpage, setSelectedFanpage] = useState<string>("all");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [presetRange, setPresetRange] = useState<PresetRange>("this_month");
+  const [startDate, setStartDate] = useState<string>(() => getMonthRange(0).start);
+  const [endDate, setEndDate] = useState<string>(() => getMonthRange(0).end);
   const [searchTerm, setSearchTerm] = useState<string>("");
+
+  const handlePresetChange = (preset: PresetRange) => {
+    setPresetRange(preset);
+    const now = new Date();
+    if (preset === "this_month") {
+      const r = getMonthRange(0);
+      setStartDate(r.start);
+      setEndDate(r.end);
+    } else if (preset === "last_month") {
+      const r = getMonthRange(-1);
+      setStartDate(r.start);
+      setEndDate(r.end);
+    } else if (preset === "7days") {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const nowY = now.getFullYear();
+      const nowM = String(now.getMonth() + 1).padStart(2, "0");
+      const nowD = String(now.getDate()).padStart(2, "0");
+      setStartDate(`${yyyy}-${mm}-${dd}`);
+      setEndDate(`${nowY}-${nowM}-${nowD}`);
+    } else if (preset === "all") {
+      setStartDate("");
+      setEndDate("");
+    }
+  };
 
   const [isPending, startTransition] = useTransition();
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -45,10 +88,6 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
   const [formLink, setFormLink] = useState("");
   const [formViews, setFormViews] = useState<number | string>(0);
   const [formInteractions, setFormInteractions] = useState<number | string>(0);
-  const [formLeads, setFormLeads] = useState<number | string>(0);
-  const [formConsulted, setFormConsulted] = useState<number | string>(0);
-  const [formConverted, setFormConverted] = useState<number | string>(0);
-  const [formOrders, setFormOrders] = useState<number | string>(0);
   const [formBranchId, setFormBranchId] = useState("");
   const [formFanpage, setFormFanpage] = useState("");
   const [formNotes, setFormNotes] = useState("");
@@ -64,14 +103,25 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
 
   const loadData = () => {
     startTransition(async () => {
-      const res = await getMarketingContentsAction(
-        platform,
-        selectedBranch === "all" ? undefined : selectedBranch,
-        startDate || undefined,
-        endDate || undefined
-      );
-      if (res.data) {
-        setItems(res.data);
+      const [contentRes, leadsRes] = await Promise.all([
+        getMarketingContentsAction(
+          platform,
+          selectedBranch === "all" ? undefined : selectedBranch,
+          startDate || undefined,
+          endDate || undefined
+        ),
+        getMarketingLeadsAction(
+          undefined,
+          selectedBranch === "all" ? undefined : selectedBranch,
+          startDate || undefined,
+          endDate || undefined
+        ),
+      ]);
+      if (contentRes.data) {
+        setItems(contentRes.data);
+      }
+      if (leadsRes.data) {
+        setLeads(leadsRes.data);
       }
     });
   };
@@ -91,10 +141,6 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
     setFormLink("");
     setFormViews(0);
     setFormInteractions(0);
-    setFormLeads(0);
-    setFormConsulted(0);
-    setFormConverted(0);
-    setFormOrders(0);
     setFormBranchId(HATICO_BRANCHES[0].id);
     setFormFanpage(HATICO_FANPAGES[0]);
     setFormNotes("");
@@ -110,10 +156,6 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
     setFormLink(item.link || "");
     setFormViews(item.views);
     setFormInteractions(item.interactions);
-    setFormLeads(item.leads_count);
-    setFormConsulted(item.consulted_count);
-    setFormConverted(item.converted_count);
-    setFormOrders(item.orders_count);
     setFormBranchId(item.branch_id || HATICO_BRANCHES[0].id);
     setFormFanpage(item.fanpage_name || HATICO_FANPAGES[0]);
     setFormNotes(item.notes || "");
@@ -137,10 +179,10 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
       link: formLink.trim() || undefined,
       views: Number(formViews) || 0,
       interactions: Number(formInteractions) || 0,
-      leads_count: Number(formLeads) || 0,
-      consulted_count: Number(formConsulted) || 0,
-      converted_count: Number(formConverted) || 0,
-      orders_count: Number(formOrders) || 0,
+      leads_count: 0,
+      consulted_count: 0,
+      converted_count: 0,
+      orders_count: 0,
       branch_id: formBranchId || undefined,
       fanpage_name: formFanpage || undefined,
       notes: formNotes.trim() || undefined,
@@ -188,10 +230,27 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
   const totalPosts = filteredItems.length;
   const totalViews = filteredItems.reduce((s, i) => s + (Number(i.views) || 0), 0);
   const totalInteractions = filteredItems.reduce((s, i) => s + (Number(i.interactions) || 0), 0);
-  const totalLeads = filteredItems.reduce((s, i) => s + (Number(i.leads_count) || 0), 0);
-  const totalConsulted = filteredItems.reduce((s, i) => s + (Number(i.consulted_count) || 0), 0);
-  const totalConverted = filteredItems.reduce((s, i) => s + (Number(i.converted_count) || 0), 0);
-  const totalOrders = filteredItems.reduce((s, i) => s + (Number(i.orders_count) || 0), 0);
+
+  // Lấy dữ liệu khách hàng & chuyển đổi thực tế từ phân hệ Khách hàng Marketing
+  const channelLeads = leads.filter((l) => {
+    const src = (l.source || "").toLowerCase();
+    if (platform === "facebook") return src.includes("facebook") || src.includes("fb");
+    if (platform === "tiktok") return src.includes("tiktok");
+    if (platform === "youtube") return src.includes("youtube");
+    if (platform === "website") return src.includes("web");
+    return false;
+  });
+
+  const totalLeads = channelLeads.length;
+  const totalConsulted = channelLeads.filter(
+    (l) => l.status === "consulted" || l.status === "converted" || l.status === "closed" || Boolean(l.consulted_at)
+  ).length;
+  const totalConverted = channelLeads.filter(
+    (l) => l.status === "converted" || l.status === "closed" || Boolean(l.converted_at)
+  ).length;
+  const totalOrders = channelLeads.filter(
+    (l) => l.status === "closed" || Boolean(l.order_id) || Boolean(l.closed_at)
+  ).length;
 
   // Category breakdown
   const regularPostsCount = filteredItems.filter((i) => i.content_type === "Bài viết" || i.content_type === "Video dài").length;
@@ -250,8 +309,50 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 text-xs">
+        {/* Preset Range Row */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-slate-500 font-semibold mr-1">Khoảng thời gian:</span>
+            {(
+              [
+                { id: "this_month", label: "Tháng này" },
+                { id: "last_month", label: "Tháng trước" },
+                { id: "7days", label: "7 ngày qua" },
+                { id: "all", label: "Tất cả" },
+                { id: "custom", label: "Tùy chỉnh" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => handlePresetChange(t.id)}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                  presetRange === t.id
+                    ? "bg-primary text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "contents" && (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <input
+                type="text"
+                placeholder="Tìm theo tiêu đề, chủ đề..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full sm:w-56 px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Detail Filter Row */}
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
           {platform === "facebook" && (
             <div className="flex items-center gap-1.5">
               <span className="text-slate-500 font-medium">Fanpage:</span>
@@ -287,30 +388,24 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPresetRange("custom");
+              }}
               className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
             />
             <span className="text-slate-400">→</span>
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPresetRange("custom");
+              }}
               className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
             />
           </div>
         </div>
-
-        {activeTab === "contents" && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <input
-              type="text"
-              placeholder="Tìm theo tiêu đề, chủ đề..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-56 px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-        )}
       </div>
 
       {/* ================= TAB A: TỔNG HỢP HIỆU QUẢ ================= */}
@@ -449,10 +544,10 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                         </td>
                       )}
                       <td className="py-2.5 px-3 text-center font-bold text-amber-600">
-                        {item.leads_count || 0}
+                        {leads.filter((l) => l.content_id === item.id).length}
                       </td>
                       <td className="py-2.5 px-3 text-center font-bold text-emerald-700">
-                        {item.orders_count || 0}
+                        {leads.filter((l) => l.content_id === item.id && (l.status === "closed" || Boolean(l.order_id) || Boolean(l.closed_at))).length}
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
@@ -638,7 +733,7 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                 <span className="text-[11px] font-bold text-slate-700 uppercase">
                   Số liệu thực tế đạt được
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-slate-500 text-[11px] font-medium mb-0.5">Lượt xem</label>
                     <input
@@ -661,47 +756,10 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                       />
                     </div>
                   )}
-                  <div>
-                    <label className="block text-slate-500 text-[11px] font-medium mb-0.5">Khách quan tâm</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formLeads}
-                      onChange={(e) => setFormLeads(e.target.value)}
-                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 text-[11px] font-medium mb-0.5">Đã tư vấn</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formConsulted}
-                      onChange={(e) => setFormConsulted(e.target.value)}
-                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 text-[11px] font-medium mb-0.5">Chuyển đổi</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formConverted}
-                      onChange={(e) => setFormConverted(e.target.value)}
-                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-500 text-[11px] font-medium mb-0.5">Đơn hàng chốt</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={formOrders}
-                      onChange={(e) => setFormOrders(e.target.value)}
-                      className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
-                    />
-                  </div>
                 </div>
+                <p className="text-[11px] text-slate-400 mt-1 italic">
+                  * Số lượng khách hàng và chuyển đổi được tự động ghi nhận theo nguồn từ phân hệ Khách hàng Marketing.
+                </p>
               </div>
 
               <div>

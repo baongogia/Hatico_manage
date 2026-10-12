@@ -62,6 +62,8 @@ export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
 export interface MarketingContentItem {
   id: string;
   platform: MarketingPlatform;
+  platform_raw?: string; // Ví dụ "Tiktok, Facebook" nếu đa nền tảng
+  platforms?: string[]; // Mảng các nền tảng ["tiktok", "facebook"]
   publish_date: string;
   title: string;
   content_type: string; // "Bài viết", "Reels", "Video ngắn", "Video dài", "Shorts", "Bài website"
@@ -69,6 +71,9 @@ export interface MarketingContentItem {
   link?: string;
   views: number;
   interactions: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
   leads_count: number;
   consulted_count: number;
   converted_count: number;
@@ -77,6 +82,7 @@ export interface MarketingContentItem {
   fanpage_name?: string;
   author_id?: string;
   author_name?: string;
+  status?: "completed" | "in_progress" | "pending";
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -100,11 +106,19 @@ export interface MarketingCampaignItem {
   consulted_count: number;
   converted_count: number;
   orders_count: number;
+  cpl?: number | null; // CPL thực tế (Cost Per Lead)
+  cost_per_order?: number | null; // Chi phí / đơn hàng chốt
   status: CampaignStatus;
   notes?: string;
   created_by?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface LeadStatusHistoryEntry {
+  status: LeadStatus;
+  changed_at: string;
+  note?: string;
 }
 
 export interface MarketingLeadItem {
@@ -115,8 +129,11 @@ export interface MarketingLeadItem {
   address?: string;
   demand?: string;
   source: LeadSource;
+  source_type?: "organic" | "ads";
   campaign_id?: string;
   campaign_name?: string;
+  content_id?: string; // ID bài viết / video tạo nguồn
+  content_title?: string;
   branch_id?: string; // Chi nhánh tạo nguồn
   branch_name?: string;
   handler_branch_id?: string; // Chi nhánh tiếp nhận xử lý
@@ -124,6 +141,11 @@ export interface MarketingLeadItem {
   assigned_staff_id?: string; // Nhân sự phụ trách
   assigned_staff_name?: string;
   status: LeadStatus;
+  consulted_at?: string; // Thời điểm tư vấn
+  converted_at?: string; // Thời điểm chuyển đổi
+  closed_at?: string; // Thời điểm chốt đơn
+  order_id?: string; // Mã đơn hàng / Hợp đồng thực tế
+  status_history?: LeadStatusHistoryEntry[];
   notes?: string;
   created_by?: string;
   created_at?: string;

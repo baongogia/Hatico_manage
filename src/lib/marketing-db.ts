@@ -18,6 +18,13 @@ import {
 // DATE RANGE UTILITIES
 // ==============================================================================
 
+export function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function getDateRangeBounds(filter: MarketingFilter): {
   startDate: string;
   endDate: string;
@@ -25,46 +32,57 @@ export function getDateRangeBounds(filter: MarketingFilter): {
   prevEndDate: string;
 } {
   const now = new Date();
-  const formatISO = (d: Date) => d.toISOString().split("T")[0];
 
   let start: Date;
-  let end: Date = new Date(now);
+  let end: Date;
+  let prevStart: Date;
+  let prevEnd: Date;
 
   if (filter.dateRange === "today") {
-    start = new Date(now);
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    prevEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    prevStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
   } else if (filter.dateRange === "7days") {
-    start = new Date(now);
-    start.setDate(start.getDate() - 6);
+    end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    prevEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    prevStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13);
   } else if (filter.dateRange === "this_month") {
     start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    prevEnd = new Date(now.getFullYear(), now.getMonth(), 0);
   } else if (filter.dateRange === "last_month") {
     start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     end = new Date(now.getFullYear(), now.getMonth(), 0);
+    prevStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0);
   } else if (filter.dateRange === "custom" && filter.startDate) {
-    start = new Date(filter.startDate);
-    end = filter.endDate ? new Date(filter.endDate) : new Date(now);
+    const sParts = filter.startDate.split("-").map(Number);
+    start = new Date(sParts[0], sParts[1] - 1, sParts[2]);
+    if (filter.endDate) {
+      const eParts = filter.endDate.split("-").map(Number);
+      end = new Date(eParts[0], eParts[1] - 1, eParts[2]);
+    } else {
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+    const diffDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    prevEnd = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1);
+    prevStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() - diffDays + 1);
   } else {
     // Default to this month
     start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    prevEnd = new Date(now.getFullYear(), now.getMonth(), 0);
   }
 
-  const startDate = formatISO(start);
-  const endDate = formatISO(end);
-
-  // Compute duration in days to calculate previous comparative period
-  const diffTime = Math.max(0, end.getTime() - start.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-  const prevEnd = new Date(start);
-  prevEnd.setDate(prevEnd.getDate() - 1);
-  const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevStart.getDate() - diffDays + 1);
-
   return {
-    startDate,
-    endDate,
-    prevStartDate: formatISO(prevStart),
-    prevEndDate: formatISO(prevEnd),
+    startDate: formatLocalDate(start),
+    endDate: formatLocalDate(end),
+    prevStartDate: formatLocalDate(prevStart),
+    prevEndDate: formatLocalDate(prevEnd),
   };
 }
 
@@ -86,22 +104,80 @@ async function checkDedicatedTables(supabase: ReturnType<typeof createServiceCli
   }
 }
 
-// Fallback storage key type inside daily_reports.tasks_data
-interface MktContentDailyTask {
-  type: "marketing_content_record";
-  content: MarketingContentItem;
+// Platform & Content Normalization Helpers
+export function normalizePlatform(raw?: string): MarketingPlatform {
+  if (!raw) return "facebook";
+  const s = raw.toLowerCase();
+  if (s.includes("tiktok")) return "tiktok";
+  if (s.includes("facebook")) return "facebook";
+  if (s.includes("youtube")) return "youtube";
+  if (s.includes("website")) return "website";
+  return "facebook";
 }
-interface MktCampaignDailyTask {
-  type: "marketing_campaign_record";
-  campaign: MarketingCampaignItem;
+
+export function matchesPlatform(rawPlatform?: string, targetPlatform?: MarketingPlatform): boolean {
+  if (!targetPlatform || (targetPlatform as string) === "all") return true;
+  if (!rawPlatform) return false;
+  const s = rawPlatform.toLowerCase();
+  if (targetPlatform === "tiktok") return s.includes("tiktok");
+  if (targetPlatform === "facebook") return s.includes("facebook");
+  if (targetPlatform === "youtube") return s.includes("youtube");
+  if (targetPlatform === "website") return s.includes("website");
+  return false;
 }
-interface MktLeadDailyTask {
-  type: "marketing_lead_record";
-  lead: MarketingLeadItem;
+
+export function parseViewsCount(val: string | number | undefined | null): number {
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  if (!val) return 0;
+  const str = String(val).trim().toLowerCase();
+  if (str === ">1k") return 1000;
+  if (str === ">2k") return 2000;
+  if (str.includes(">5k")) return 5000;
+  if (str.includes(">10k") || str.includes("> 10k")) return 10000;
+  if (str.endsWith("k")) {
+    const n = parseFloat(str.replace("k", ""));
+    return isNaN(n) ? 0 : Math.round(n * 1000);
+  }
+  const digits = str.replace(/[^\d]/g, "");
+  return digits ? parseInt(digits, 10) : 0;
+}
+
+export function guessContentType(link?: string, platform?: string, existing?: string): string {
+  if (existing && existing.trim()) return existing.trim();
+  const l = (link || "").toLowerCase();
+  const p = (platform || "").toLowerCase();
+  if (l.includes("/shorts/") || (p.includes("youtube") && !l.includes("watch"))) return "Shorts";
+  if (l.includes("/reel/") || l.includes("reels")) return "Reels";
+  if (p.includes("tiktok") || l.includes("tiktok.com")) return "Video ngắn";
+  if (p.includes("website") || l.includes("mooc-hatico.com.vn") || l.includes("hatico.com")) return "Bài website";
+  if (p.includes("youtube")) return "Video dài";
+  return "Bài viết";
+}
+
+export function getStablePostId(reportId: string, date: string, title: string, link: string): string {
+  const raw = `${reportId}::${date}::${(title || "").trim()}::${(link || "").trim()}`;
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const hex = (h1 >>> 0).toString(16).padStart(8, "0") + (h2 >>> 0).toString(16).padStart(8, "0") + (h1 >>> 0).toString(16).padStart(8, "0") + (h2 >>> 0).toString(16).padStart(8, "0");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+export function capitalizePlatform(p: string): string {
+  if (p === "tiktok") return "Tiktok";
+  if (p === "facebook") return "Facebook";
+  if (p === "youtube") return "Youtube";
+  if (p === "website") return "Website";
+  return p.charAt(0).toUpperCase() + p.slice(1);
 }
 
 // ------------------------------------------------------------------------------
-// MARKETING CONTENTS CRUD
+// MARKETING CONTENTS CRUD (Single Source of Truth)
 // ------------------------------------------------------------------------------
 
 export async function fetchMarketingContents(
@@ -113,6 +189,7 @@ export async function fetchMarketingContents(
   const supabase = createServiceClient();
   const hasDedicated = await checkDedicatedTables(supabase);
 
+  // If dedicated table exists and has data, query it
   if (hasDedicated) {
     let query = supabase.from("marketing_contents").select("*").order("publish_date", { ascending: false });
     if (platform) query = query.eq("platform", platform);
@@ -121,32 +198,113 @@ export async function fetchMarketingContents(
     if (endDate) query = query.lte("publish_date", endDate);
 
     const { data, error } = await query;
-    if (!error && data) return data as MarketingContentItem[];
+    if (!error && data && data.length > 0) return data as MarketingContentItem[];
   }
 
-  // Fallback: Read from daily_reports
-  let fbQuery = supabase
-    .from("daily_reports")
-    .select("tasks_data, report_date")
-    .order("report_date", { ascending: false });
+  // Load daily_reports containing both marketing_post and marketing_content_record
+  // Also load profiles to get author names and default branches
+  const [reportsRes, profilesRes] = await Promise.all([
+    supabase
+      .from("daily_reports")
+      .select("id, tasks_data, report_date, user_id, created_at, updated_at")
+      .order("report_date", { ascending: false }),
+    supabase
+      .from("profiles")
+      .select("id, full_name, department_id, departments(id, name, branch_id)")
+  ]);
 
-  if (startDate) fbQuery = fbQuery.gte("report_date", startDate);
-  if (endDate) fbQuery = fbQuery.lte("report_date", endDate);
-  else fbQuery = fbQuery.limit(500);
-
-  const { data: reports } = await fbQuery;
-
+  interface ProfileWithDept {
+    id: string;
+    full_name: string;
+    department_id: string | null;
+    departments: { id: string; name: string; branch_id: string } | null;
+  }
+  const profileMap = new Map<string, ProfileWithDept>(
+    ((profilesRes.data || []) as unknown as ProfileWithDept[]).map((p) => [p.id, p])
+  );
   const list: MarketingContentItem[] = [];
-  for (const r of reports || []) {
+  const seenIds = new Set<string>();
+
+  for (const r of reportsRes.data || []) {
+    const reportDate = r.report_date;
+    const authorProfile = profileMap.get(r.user_id);
+    const authorBranchId = authorProfile?.departments?.branch_id || HATICO_BRANCHES[0].id;
+    const authorName = authorProfile?.full_name || "Nhân viên Marketing";
+
     const tasks = Array.isArray(r.tasks_data) ? r.tasks_data : [];
     for (const t of tasks) {
-      if (t.type === "marketing_content_record" && t.content) {
-        const item: MarketingContentItem = t.content;
-        if (platform && item.platform !== platform) continue;
-        if (branchId && branchId !== "all" && item.branch_id !== branchId) continue;
-        if (startDate && item.publish_date < startDate) continue;
-        if (endDate && item.publish_date > endDate) continue;
+      // 1. Case A: "marketing_post" (centralized Post Reporting in daily_reports)
+      if (t.type === "marketing_post") {
+        const rawPlatform = t.platform || "Facebook";
+        if (platform && !matchesPlatform(rawPlatform, platform)) continue;
+
+        const effectiveBranchId = t.branch_id || authorBranchId;
+        if (branchId && branchId !== "all" && effectiveBranchId !== branchId) continue;
+
+        const itemDate = t.publish_date || reportDate;
+        if (startDate && itemDate < startDate) continue;
+        if (endDate && itemDate > endDate) continue;
+
+        const stableId = t.id || getStablePostId(r.id, reportDate, t.title || "", t.link || "");
+        if (seenIds.has(stableId)) continue;
+        seenIds.add(stableId);
+
+        const views = parseViewsCount(t.views);
+        const likes = parseViewsCount(t.likes);
+        const comments = parseViewsCount(t.comments);
+        const shares = parseViewsCount(t.shares);
+        const interactions = (Number(t.interactions) || 0) || (likes + comments + shares);
+
+        const item: MarketingContentItem = {
+          id: stableId,
+          platform: normalizePlatform(rawPlatform),
+          platform_raw: rawPlatform,
+          platforms: rawPlatform.split(",").map((p: string) => p.trim().toLowerCase()).filter(Boolean),
+          publish_date: t.publish_date || reportDate,
+          title: (t.title || "").trim(),
+          content_type: guessContentType(t.link, rawPlatform, t.content_type),
+          topic: t.topic || "",
+          link: t.link || "",
+          views,
+          interactions,
+          likes,
+          comments,
+          shares,
+          leads_count: Number(t.leads_count) || 0,
+          consulted_count: Number(t.consulted_count) || 0,
+          converted_count: Number(t.converted_count) || 0,
+          orders_count: Number(t.orders_count) || 0,
+          branch_id: effectiveBranchId,
+          fanpage_name: t.fanpage_name || "",
+          author_id: t.author_id || r.user_id,
+          author_name: t.author_name || authorName,
+          status: t.status || "completed",
+          notes: t.notes || "",
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+        };
         list.push(item);
+      }
+      // 2. Case B: "marketing_content_record"
+      else if (t.type === "marketing_content_record" && t.content) {
+        const c: MarketingContentItem = t.content;
+        const rawPlatform = c.platform_raw || c.platform;
+        if (platform && !matchesPlatform(rawPlatform, platform)) continue;
+
+        const effectiveBranchId = c.branch_id || authorBranchId;
+        if (branchId && branchId !== "all" && effectiveBranchId !== branchId) continue;
+
+        if (startDate && c.publish_date < startDate) continue;
+        if (endDate && c.publish_date > endDate) continue;
+
+        if (seenIds.has(c.id)) continue;
+        seenIds.add(c.id);
+
+        list.push({
+          ...c,
+          branch_id: effectiveBranchId,
+          author_name: c.author_name || authorName,
+        });
       }
     }
   }
@@ -156,46 +314,185 @@ export async function fetchMarketingContents(
 
 export async function upsertMarketingContent(item: MarketingContentItem, userId: string): Promise<MarketingContentItem> {
   const supabase = createServiceClient();
-  const hasDedicated = await checkDedicatedTables(supabase);
   const now = new Date().toISOString();
+  const contentId = item.id || crypto.randomUUID();
+
+  // Find author name if needed
+  let authorName = item.author_name;
+  if (!authorName && userId) {
+    const { data: prof } = await supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle();
+    authorName = prof?.full_name;
+  }
 
   const record: MarketingContentItem = {
     ...item,
-    id: item.id || crypto.randomUUID(),
+    id: contentId,
     author_id: item.author_id || userId,
+    author_name: authorName,
+    platform: item.platform || "facebook",
+    platform_raw: item.platform_raw || capitalizePlatform(item.platform),
+    views: Number(item.views) || 0,
+    interactions: Number(item.interactions) || 0,
     updated_at: now,
     created_at: item.created_at || now,
   };
 
+  const hasDedicated = await checkDedicatedTables(supabase);
   if (hasDedicated) {
-    const { error } = await supabase.from("marketing_contents").upsert(record);
-    if (!error) return record;
+    await supabase.from("marketing_contents").upsert(record);
   }
 
-  // Fallback: Store inside daily_reports for the publish_date
-  await storeDailyReportTaskRecord(
-    supabase,
-    userId,
-    record.publish_date,
-    "marketing_content_record",
-    record.id,
-    record
-  );
+  // Unified persistence into daily_reports as marketing_post
+  const { data: allReports } = await supabase
+    .from("daily_reports")
+    .select("id, report_date, tasks_data, user_id");
+
+  let updatedExisting = false;
+  for (const r of allReports || []) {
+    if (!Array.isArray(r.tasks_data)) continue;
+    let modified = false;
+    const nextTasks = r.tasks_data.map((t: Record<string, unknown>) => {
+      const isMatch =
+        (t.type === "marketing_post" &&
+          (t.id === record.id ||
+            getStablePostId(r.id, r.report_date, String(t.title || ""), String(t.link || "")) === record.id)) ||
+        (t.type === "marketing_content_record" && (t.content as MarketingContentItem)?.id === record.id);
+
+      if (isMatch) {
+        if (r.report_date === record.publish_date) {
+          modified = true;
+          updatedExisting = true;
+          return {
+            id: record.id,
+            type: "marketing_post",
+            platform: record.platform_raw || capitalizePlatform(record.platform),
+            title: record.title,
+            link: record.link || "",
+            views: String(record.views),
+            likes: String(record.likes ?? ""),
+            comments: String(record.comments ?? ""),
+            shares: String(record.shares ?? ""),
+            status: record.status || "completed",
+            content_type: record.content_type,
+            topic: record.topic || "",
+            branch_id: record.branch_id,
+            author_id: record.author_id,
+            author_name: record.author_name,
+          };
+        } else {
+          // Date changed: drop from old date
+          modified = true;
+          return null;
+        }
+      }
+      return t;
+    }).filter(Boolean);
+
+    if (modified) {
+      await supabase.from("daily_reports").update({ tasks_data: nextTasks, updated_at: now }).eq("id", r.id);
+    }
+  }
+
+  // If not updated in place, find or create daily_reports for record.publish_date
+  if (!updatedExisting) {
+    let { data: targetRep } = await supabase
+      .from("daily_reports")
+      .select("id, tasks_data")
+      .eq("report_date", record.publish_date)
+      .eq("user_id", record.author_id || userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!targetRep) {
+      const { data: anyRep } = await supabase
+        .from("daily_reports")
+        .select("id, tasks_data")
+        .eq("report_date", record.publish_date)
+        .limit(1)
+        .maybeSingle();
+      targetRep = anyRep;
+    }
+
+    if (!targetRep) {
+      const { data: newRep } = await supabase
+        .from("daily_reports")
+        .insert({
+          user_id: record.author_id || userId,
+          report_date: record.publish_date,
+          tasks_data: [],
+          status: "submitted",
+          created_at: now,
+          updated_at: now,
+        })
+        .select("id, tasks_data")
+        .single();
+      targetRep = newRep;
+    }
+
+    if (targetRep) {
+      const rawTasks = Array.isArray(targetRep.tasks_data) ? targetRep.tasks_data : [];
+      const tasks = rawTasks.filter((t: Record<string, unknown>) => t.id !== record.id);
+      const newTask = {
+        id: record.id,
+        type: "marketing_post",
+        platform: record.platform_raw || capitalizePlatform(record.platform),
+        title: record.title,
+        link: record.link || "",
+        views: String(record.views),
+        likes: String(record.likes ?? ""),
+        comments: String(record.comments ?? ""),
+        shares: String(record.shares ?? ""),
+        status: record.status || "completed",
+        content_type: record.content_type,
+        topic: record.topic || "",
+        branch_id: record.branch_id,
+        author_id: record.author_id,
+        author_name: record.author_name,
+      };
+      tasks.push(newTask);
+      await supabase.from("daily_reports").update({ tasks_data: tasks, updated_at: now }).eq("id", targetRep.id);
+    }
+  }
 
   return record;
 }
 
-export async function deleteMarketingContentById(id: string, userId: string): Promise<boolean> {
+export async function deleteMarketingContentById(id: string, _userId?: string): Promise<boolean> {
   const supabase = createServiceClient();
   const hasDedicated = await checkDedicatedTables(supabase);
 
   if (hasDedicated) {
-    const { error } = await supabase.from("marketing_contents").delete().eq("id", id);
-    if (!error) return true;
+    await supabase.from("marketing_contents").delete().eq("id", id);
   }
 
-  // Fallback
-  await removeDailyReportTaskRecord(supabase, "marketing_content_record", id);
+  // Remove from daily_reports
+  const { data: allReports } = await supabase
+    .from("daily_reports")
+    .select("id, report_date, tasks_data")
+    .order("report_date", { ascending: false })
+    .limit(3000);
+
+  for (const r of allReports || []) {
+    if (!Array.isArray(r.tasks_data)) continue;
+    const filtered = r.tasks_data.filter((t: Record<string, unknown>) => {
+      if (t.type === "marketing_post") {
+        const stableId = (t.id as string) || getStablePostId(r.id, r.report_date, String(t.title || ""), String(t.link || ""));
+        return stableId !== id;
+      }
+      if (t.type === "marketing_content_record") {
+        return (t.content as MarketingContentItem)?.id !== id;
+      }
+      return true;
+    });
+
+    if (filtered.length !== r.tasks_data.length) {
+      await supabase
+        .from("daily_reports")
+        .update({ tasks_data: filtered, updated_at: new Date().toISOString() })
+        .eq("id", r.id);
+    }
+  }
+
   return true;
 }
 
@@ -236,11 +533,14 @@ export async function fetchMarketingCampaigns(
   const { data: reports } = await fbQuery;
 
   const list: MarketingCampaignItem[] = [];
+  const seenIds = new Set<string>();
   for (const r of reports || []) {
     const tasks = Array.isArray(r.tasks_data) ? r.tasks_data : [];
     for (const t of tasks) {
       if (t.type === "marketing_campaign_record" && t.campaign) {
         const item: MarketingCampaignItem = t.campaign;
+        if (seenIds.has(item.id)) continue;
+        seenIds.add(item.id);
         if (platform && item.platform !== platform) continue;
         if (branchId && branchId !== "all" && item.branch_id !== branchId) continue;
         if (startDate && item.start_date < startDate) continue;
@@ -278,7 +578,7 @@ export async function upsertMarketingCampaign(item: MarketingCampaignItem, userI
     record.start_date,
     "marketing_campaign_record",
     record.id,
-    record
+    record as unknown as Record<string, unknown>
   );
 
   return record;
@@ -338,11 +638,14 @@ export async function fetchMarketingLeads(
   const { data: reports } = await fbQuery;
 
   const list: MarketingLeadItem[] = [];
+  const seenIds = new Set<string>();
   for (const r of reports || []) {
     const tasks = Array.isArray(r.tasks_data) ? r.tasks_data : [];
     for (const t of tasks) {
       if (t.type === "marketing_lead_record" && t.lead) {
         const item: MarketingLeadItem = t.lead;
+        if (seenIds.has(item.id)) continue;
+        seenIds.add(item.id);
         if (source && source !== "all" && item.source !== source) continue;
         if (branchId && branchId !== "all" && item.branch_id !== branchId) continue;
         if (startDate && item.lead_date < startDate) continue;
@@ -364,11 +667,39 @@ export async function upsertMarketingLead(item: MarketingLeadItem, userId: strin
   const supabase = createServiceClient();
   const hasDedicated = await checkDedicatedTables(supabase);
   const now = new Date().toISOString();
+  const today = now.slice(0, 10);
+
+  let consultedAt = item.consulted_at;
+  let convertedAt = item.converted_at;
+  let closedAt = item.closed_at;
+
+  if (["consulted", "discussing", "converted", "closed"].includes(item.status) && !consultedAt) {
+    consultedAt = today;
+  }
+  if (["converted", "closed"].includes(item.status) && !convertedAt) {
+    convertedAt = today;
+  }
+  if (item.status === "closed" && !closedAt) {
+    closedAt = today;
+  }
+
+  const statusHistory = Array.isArray(item.status_history) ? [...item.status_history] : [];
+  if (statusHistory.length === 0 || statusHistory[statusHistory.length - 1].status !== item.status) {
+    statusHistory.push({
+      status: item.status,
+      changed_at: now,
+      note: item.notes,
+    });
+  }
 
   const record: MarketingLeadItem = {
     ...item,
     id: item.id || crypto.randomUUID(),
     created_by: item.created_by || userId,
+    consulted_at: consultedAt,
+    converted_at: convertedAt,
+    closed_at: closedAt,
+    status_history: statusHistory,
     updated_at: now,
     created_at: item.created_at || now,
   };
@@ -385,7 +716,7 @@ export async function upsertMarketingLead(item: MarketingLeadItem, userId: strin
     record.lead_date,
     "marketing_lead_record",
     record.id,
-    record
+    record as unknown as Record<string, unknown>
   );
 
   return record;
@@ -431,7 +762,7 @@ async function storeDailyReportTaskRecord(
   date: string,
   recordType: "marketing_content_record" | "marketing_campaign_record" | "marketing_lead_record",
   recordId: string,
-  recordData: any
+  recordData: Record<string, unknown>
 ) {
   let effectiveUserId = isValidUuid(userId) ? userId : null;
   if (!effectiveUserId) {
@@ -468,10 +799,12 @@ async function storeDailyReportTaskRecord(
 
   if (!report) return;
 
-  const tasks: any[] = Array.isArray(report.tasks_data) ? [...report.tasks_data] : [];
+  const tasks: Record<string, unknown>[] = Array.isArray(report.tasks_data)
+    ? (report.tasks_data as Record<string, unknown>[])
+    : [];
   const key = recordType === "marketing_content_record" ? "content" : recordType === "marketing_campaign_record" ? "campaign" : "lead";
 
-  const existingIndex = tasks.findIndex((t) => t.type === recordType && t[key]?.id === recordId);
+  const existingIndex = tasks.findIndex((t) => t.type === recordType && (t[key] as { id?: string })?.id === recordId);
   const taskEntry = {
     type: recordType,
     [key]: recordData,
@@ -496,14 +829,17 @@ async function removeDailyReportTaskRecord(
 ) {
   const { data: reports } = await supabase
     .from("daily_reports")
-    .select("id, tasks_data");
+    .select("id, tasks_data")
+    .order("report_date", { ascending: false })
+    .limit(3000);
 
   const key = recordType === "marketing_content_record" ? "content" : recordType === "marketing_campaign_record" ? "campaign" : "lead";
 
   for (const r of reports || []) {
     if (!Array.isArray(r.tasks_data)) continue;
-    const filtered = r.tasks_data.filter((t: any) => !(t.type === recordType && t[key]?.id === recordId));
-    if (filtered.length !== r.tasks_data.length) {
+    const tasks = r.tasks_data as Record<string, unknown>[];
+    const filtered = tasks.filter((t) => !(t.type === recordType && (t[key] as { id?: string })?.id === recordId));
+    if (filtered.length !== tasks.length) {
       await supabase
         .from("daily_reports")
         .update({ tasks_data: filtered, updated_at: new Date().toISOString() })
@@ -629,10 +965,12 @@ export async function calculateMarketingDashboardMetrics(filter: MarketingFilter
   // --- Chart 1: Trend Data (Grouped by date within range) ---
   const dateMap = new Map<string, { leads: number; consulted: number; orders: number }>();
   // Prepopulate dates
-  const cur = new Date(startDate);
-  const endD = new Date(endDate);
+  const [sY, sM, sD] = startDate.split("-").map(Number);
+  const [eY, eM, eD] = endDate.split("-").map(Number);
+  const cur = new Date(sY, sM - 1, sD);
+  const endD = new Date(eY, eM - 1, eD);
   while (cur <= endD) {
-    const dStr = cur.toISOString().split("T")[0];
+    const dStr = formatLocalDate(cur);
     dateMap.set(dStr, { leads: 0, consulted: 0, orders: 0 });
     cur.setDate(cur.getDate() + 1);
   }
@@ -664,8 +1002,8 @@ export async function calculateMarketingDashboardMetrics(filter: MarketingFilter
   // --- Chart 2: Channel Comparison (Facebook, TikTok, YouTube, Website) ---
   const channels = ["Facebook", "TikTok", "YouTube", "Website"];
   const channelComparison: ChannelComparisonPoint[] = channels.map((chName) => {
-    const chLower = chName.toLowerCase();
-    const contents = currentContents.filter((c) => c.platform === chLower);
+    const chLower = chName.toLowerCase() as MarketingPlatform;
+    const contents = currentContents.filter((c) => matchesPlatform(c.platform_raw || c.platform, chLower));
     const leads = currentLeads.filter(
       (l) => l.source === `${chLower}_organic` || (chLower === "facebook" && l.source === "facebook_ads") || (chLower === "tiktok" && l.source === "tiktok_ads") || l.source === chLower
     );

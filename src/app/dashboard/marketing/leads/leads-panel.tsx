@@ -19,14 +19,54 @@ import {
 } from "@/app/actions-marketing";
 import { CustomSelect } from "@/components/custom-select";
 
+type PresetRange = "this_month" | "last_month" | "7days" | "all" | "custom";
+
+const getMonthRange = (offsetMonths = 0) => {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + offsetMonths, 1);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const lastDay = new Date(yyyy, d.getMonth() + 1, 0).getDate();
+  const dd = String(lastDay).padStart(2, "0");
+  return { start: `${yyyy}-${mm}-01`, end: `${yyyy}-${mm}-${dd}` };
+};
+
 export function LeadsPanel() {
   const [leads, setLeads] = useState<MarketingLeadItem[]>([]);
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [branchFilter, setBranchFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [presetRange, setPresetRange] = useState<PresetRange>("this_month");
+  const [startDate, setStartDate] = useState<string>(() => getMonthRange(0).start);
+  const [endDate, setEndDate] = useState<string>(() => getMonthRange(0).end);
   const [searchTerm, setSearchTerm] = useState<string>("");
+
+  const handlePresetChange = (preset: PresetRange) => {
+    setPresetRange(preset);
+    const now = new Date();
+    if (preset === "this_month") {
+      const r = getMonthRange(0);
+      setStartDate(r.start);
+      setEndDate(r.end);
+    } else if (preset === "last_month") {
+      const r = getMonthRange(-1);
+      setStartDate(r.start);
+      setEndDate(r.end);
+    } else if (preset === "7days") {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const nowY = now.getFullYear();
+      const nowM = String(now.getMonth() + 1).padStart(2, "0");
+      const nowD = String(now.getDate()).padStart(2, "0");
+      setStartDate(`${yyyy}-${mm}-${dd}`);
+      setEndDate(`${nowY}-${nowM}-${nowD}`);
+    } else if (preset === "all") {
+      setStartDate("");
+      setEndDate("");
+    }
+  };
 
   const [canViewFullPhone, setCanViewFullPhone] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -48,6 +88,8 @@ export function LeadsPanel() {
   const [formHandlerBranchId, setFormHandlerBranchId] = useState(""); // Chi nhánh tiếp nhận
   const [formAssignedStaff, setFormAssignedStaff] = useState("");
   const [formStatus, setFormStatus] = useState<LeadStatus>("new");
+  const [formOrderId, setFormOrderId] = useState("");
+  const [formContentId, setFormContentId] = useState("");
   const [formNotes, setFormNotes] = useState("");
 
   // Duplicate Check Alert State
@@ -118,6 +160,8 @@ export function LeadsPanel() {
     setFormDemand("");
     setFormSource("facebook_organic");
     setFormCampaignId("");
+    setFormContentId("");
+    setFormOrderId("");
     setFormBranchId(HATICO_BRANCHES[0].id);
     setFormHandlerBranchId(HATICO_BRANCHES[0].id);
     setFormAssignedStaff("");
@@ -136,6 +180,8 @@ export function LeadsPanel() {
     setFormDemand(lead.demand || "");
     setFormSource(lead.source);
     setFormCampaignId(lead.campaign_id || "");
+    setFormContentId(lead.content_id || "");
+    setFormOrderId(lead.order_id || "");
     setFormBranchId(lead.branch_id || HATICO_BRANCHES[0].id);
     setFormHandlerBranchId(lead.handler_branch_id || HATICO_BRANCHES[0].id);
     setFormAssignedStaff(lead.assigned_staff_name || "");
@@ -152,6 +198,11 @@ export function LeadsPanel() {
       return;
     }
 
+    if (formStatus === "closed" && !formOrderId.trim()) {
+      alert("Khách hàng ở trạng thái Chốt đơn bắt buộc phải có Mã đơn hàng / Hợp đồng!");
+      return;
+    }
+
     const payload: MarketingLeadItem = {
       id: editingItem ? editingItem.id : "",
       lead_date: formDate,
@@ -160,11 +211,14 @@ export function LeadsPanel() {
       address: formAddress.trim() || undefined,
       demand: formDemand.trim() || undefined,
       source: formSource,
+      source_type: formSource.endsWith("_ads") ? "ads" : "organic",
       campaign_id: formCampaignId || undefined,
+      content_id: formContentId.trim() || undefined,
       branch_id: formBranchId || undefined,
       handler_branch_id: formHandlerBranchId || undefined,
       assigned_staff_name: formAssignedStaff.trim() || undefined,
       status: formStatus,
+      order_id: formOrderId.trim() || undefined,
       notes: formNotes.trim() || undefined,
     };
 
@@ -203,6 +257,8 @@ export function LeadsPanel() {
       { header: "Chi nhánh nguồn", key: "branch", width: 22 },
       { header: "Chi nhánh tiếp nhận", key: "handler_branch", width: 22 },
       { header: "Trạng thái", key: "status", width: 18 },
+      { header: "Mã đơn hàng", key: "order_id", width: 16 },
+      { header: "Mã/ID bài viết", key: "content_id", width: 18 },
       { header: "Phụ trách", key: "assigned", width: 18 },
       { header: "Ghi chú", key: "notes", width: 26 },
     ];
@@ -223,6 +279,8 @@ export function LeadsPanel() {
         branch: bName,
         handler_branch: hName,
         status: LEAD_STATUS_LABELS[l.status] || l.status,
+        order_id: l.order_id || "—",
+        content_id: l.content_id || "—",
         assigned: l.assigned_staff_name || "—",
         notes: l.notes || "",
       });
@@ -308,8 +366,48 @@ export function LeadsPanel() {
       </div>
 
       {/* Filter Row */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2.5">
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 text-xs">
+        {/* Preset Range row */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-slate-500 font-semibold mr-1">Khoảng thời gian:</span>
+            {(
+              [
+                { id: "this_month", label: "Tháng này" },
+                { id: "last_month", label: "Tháng trước" },
+                { id: "7days", label: "7 ngày qua" },
+                { id: "all", label: "Tất cả" },
+                { id: "custom", label: "Tùy chỉnh" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => handlePresetChange(t.id)}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                  presetRange === t.id
+                    ? "bg-primary text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <input
+              type="text"
+              placeholder="Tìm theo tên hoặc số điện thoại..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-60 px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+        </div>
+
+        {/* Detail Filter row */}
+        <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-medium">Nguồn:</span>
             <CustomSelect
@@ -357,27 +455,23 @@ export function LeadsPanel() {
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPresetRange("custom");
+              }}
               className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
             />
             <span className="text-slate-400">→</span>
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPresetRange("custom");
+              }}
               className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
             />
           </div>
-        </div>
-
-        <div>
-          <input
-            type="text"
-            placeholder="Tìm theo tên hoặc số điện thoại..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full sm:w-60 px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800"
-          />
         </div>
       </div>
 
@@ -436,6 +530,11 @@ export function LeadsPanel() {
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         {getStatusBadge(lead.status)}
+                        {lead.order_id && (
+                          <span className="block text-[10px] text-emerald-700 font-mono font-bold mt-0.5">
+                            Đơn: {lead.order_id}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap font-medium">
                         {lead.assigned_staff_name || "Chưa gán"}
@@ -542,6 +641,21 @@ export function LeadsPanel() {
                 </div>
               </div>
 
+              {formStatus === "closed" && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+                  <label className="block text-emerald-900 font-bold mb-1">Mã đơn hàng / Hợp đồng chốt *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: DH-2026-001, HD-10-DN..."
+                    value={formOrderId}
+                    onChange={(e) => setFormOrderId(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-emerald-900 font-bold font-mono"
+                  />
+                  <p className="text-[10px] text-emerald-700">Mã đơn hàng thực tế để liên kết số liệu Đơn chốt chuẩn xác, không bị trùng lặp.</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Họ và tên khách hàng *</label>
@@ -612,7 +726,7 @@ export function LeadsPanel() {
                   />
                 </div>
 
-                {(formSource === "facebook_ads" || formSource === "tiktok_ads") && (
+                {(formSource === "facebook_ads" || formSource === "tiktok_ads") ? (
                   <div>
                     <label className="block text-slate-600 font-semibold mb-1">Liên kết chiến dịch Ads</label>
                     <CustomSelect
@@ -625,6 +739,17 @@ export function LeadsPanel() {
                       ]}
                       className="w-full"
                       size="md"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Mã / ID bài viết liên quan (nếu có)</label>
+                    <input
+                      type="text"
+                      placeholder="ID hoặc tiêu đề bài viết tạo nguồn..."
+                      value={formContentId}
+                      onChange={(e) => setFormContentId(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
                     />
                   </div>
                 )}

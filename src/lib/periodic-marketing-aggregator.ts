@@ -13,6 +13,7 @@ import {
   fetchMarketingContents,
   fetchMarketingCampaigns,
   fetchMarketingLeads,
+  matchesPlatform,
 } from "./marketing-db";
 import { HATICO_BRANCHES } from "./marketing-types";
 
@@ -21,17 +22,14 @@ import { HATICO_BRANCHES } from "./marketing-types";
 // ==============================================================================
 
 export function getWeekDateRange(weekNumber: number, year: number): { startDate: string; endDate: string } {
-  const simple = new Date(Date.UTC(year, 0, 1 + (weekNumber - 1) * 7));
-  const dayOfWeek = simple.getUTCDay();
-  const ISOweekStart = new Date(simple);
-  if (dayOfWeek <= 4) {
-    ISOweekStart.setUTCDate(simple.getUTCDate() - simple.getUTCDay() + 1);
-  } else {
-    ISOweekStart.setUTCDate(simple.getUTCDate() + 8 - simple.getUTCDay());
-  }
-  const start = new Date(ISOweekStart);
-  const end = new Date(ISOweekStart);
-  end.setUTCDate(end.getUTCDate() + 6);
+  // ISO-8601 week 1 is the week with the year's first Thursday (Jan 4 is always in week 1)
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = jan4.getUTCDay(); // 0 is Sunday, 1 is Monday...
+  const mondayOffset = (dayOfWeek + 6) % 7; // Days from Monday of Week 1
+  const week1Monday = new Date(Date.UTC(year, 0, 4 - mondayOffset));
+
+  const start = new Date(week1Monday.getTime() + (weekNumber - 1) * 7 * 86400000);
+  const end = new Date(start.getTime() + 6 * 86400000);
   const formatISO = (d: Date) => d.toISOString().split("T")[0];
   return { startDate: formatISO(start), endDate: formatISO(end) };
 }
@@ -96,10 +94,10 @@ async function computePeriodMetrics(
 
   // 1. KÊNH & NỘI DUNG (Facebook, TikTok, YouTube, Website)
   const channelContents = {
-    facebook: contents.filter((c) => c.platform === "facebook"),
-    tiktok: contents.filter((c) => c.platform === "tiktok"),
-    youtube: contents.filter((c) => c.platform === "youtube"),
-    website: contents.filter((c) => c.platform === "website"),
+    facebook: contents.filter((c) => matchesPlatform(c.platform_raw || c.platform, "facebook")),
+    tiktok: contents.filter((c) => matchesPlatform(c.platform_raw || c.platform, "tiktok")),
+    youtube: contents.filter((c) => matchesPlatform(c.platform_raw || c.platform, "youtube")),
+    website: contents.filter((c) => matchesPlatform(c.platform_raw || c.platform, "website")),
   };
 
   // Lead metrics theo kênh (Facebook = Organic + Ads, TikTok = Organic + Ads)
@@ -212,7 +210,8 @@ async function computePeriodMetrics(
       interactions: c.interactions || 0,
       link: c.link,
     }))
-    .sort((a, b) => b.views - a.views);
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 5);
 
   // 2. CHIẾN DỊCH QUẢNG CÁO (Facebook Ads, TikTok Ads)
   const fbCampaigns = campaigns.filter((c) => c.platform === "facebook_ads");
@@ -301,7 +300,7 @@ async function computePeriodMetrics(
   // 3. KẾT QUẢ THEO CHI NHÁNH (5 chi nhánh Hatico)
   const branchResults: BranchResultRow[] = HATICO_BRANCHES.map((b) => {
     const bContents = contents.filter((c) => c.branch_id === b.id);
-    const bLeads = leads.filter((l) => l.branch_id === b.id || l.handler_branch_id === b.id);
+    const bLeads = leads.filter((l) => l.branch_id === b.id);
     const bStats = countStatus(bLeads);
     const bCampaigns = campaigns.filter((c) => c.branch_id === b.id);
     const bAdSpend = bCampaigns.reduce((acc, c) => acc + Number(c.actual_cost || 0), 0);
@@ -391,7 +390,7 @@ export async function aggregatePeriodicReportData(
     "totalAdSpend",
   ];
 
-  const kpiComparison: Record<keyof PeriodicReportKPIs, KPICardComparison> = {} as any;
+  const kpiComparison = {} as Record<keyof PeriodicReportKPIs, KPICardComparison>;
 
   for (const k of kpiKeys) {
     const curVal = currentMetrics.kpis[k];
