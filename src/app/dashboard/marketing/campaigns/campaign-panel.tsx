@@ -7,6 +7,10 @@ import {
   MarketingLeadItem,
   CampaignStatus,
   CAMPAIGN_STATUS_LABELS,
+  LeadSource,
+  LeadStatus,
+  LEAD_STATUS_LABELS,
+  LEAD_SOURCE_LABELS,
   HATICO_BRANCHES,
   HATICO_FANPAGES,
 } from "@/lib/marketing-types";
@@ -15,6 +19,9 @@ import {
   saveMarketingCampaignAction,
   deleteMarketingCampaignAction,
   getMarketingLeadsAction,
+  saveMarketingLeadAction,
+  deleteMarketingLeadAction,
+  checkDuplicateLeadAction,
 } from "@/app/actions-marketing";
 import { CustomSelect } from "@/components/custom-select";
 
@@ -36,6 +43,7 @@ const getMonthRange = (offsetMonths = 0) => {
 };
 
 export function CampaignPanel({ platform, title }: CampaignPanelProps) {
+  const [activeTab, setActiveTab] = useState<"campaigns" | "leads">("campaigns");
   const [campaigns, setCampaigns] = useState<MarketingCampaignItem[]>([]);
   const [leads, setLeads] = useState<MarketingLeadItem[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
@@ -44,6 +52,28 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
   const [presetRange, setPresetRange] = useState<PresetRange>("this_month");
   const [startDate, setStartDate] = useState<string>(() => getMonthRange(0).start);
   const [endDate, setEndDate] = useState<string>(() => getMonthRange(0).end);
+
+  // Lead State
+  const [leadSearchTerm, setLeadSearchTerm] = useState<string>("");
+  const [leadStatusFilter, setLeadStatusFilter] = useState<string>("all");
+  const [leadPage, setLeadPage] = useState<number>(1);
+  const [showLeadModal, setShowLeadModal] = useState<boolean>(false);
+  const [editingLead, setEditingLead] = useState<MarketingLeadItem | null>(null);
+
+  // Form Lead State
+  const [formLeadDate, setFormLeadDate] = useState(new Date().toISOString().split("T")[0]);
+  const [formLeadName, setFormLeadName] = useState("");
+  const [formLeadPhone, setFormLeadPhone] = useState("");
+  const [formLeadAddress, setFormLeadAddress] = useState("");
+  const [formLeadDemand, setFormLeadDemand] = useState("");
+  const [formLeadCampaignId, setFormLeadCampaignId] = useState("");
+  const [formLeadBranchId, setFormLeadBranchId] = useState<string>(HATICO_BRANCHES[0].id);
+  const [formLeadHandlerBranchId, setFormLeadHandlerBranchId] = useState<string>(HATICO_BRANCHES[0].id);
+  const [formLeadAssignedStaff, setFormLeadAssignedStaff] = useState("");
+  const [formLeadStatus, setFormLeadStatus] = useState<LeadStatus>("new");
+  const [formLeadOrderId, setFormLeadOrderId] = useState("");
+  const [formLeadNotes, setFormLeadNotes] = useState("");
+  const [leadDupWarning, setLeadDupWarning] = useState<string | null>(null);
 
   const handlePresetChange = (preset: PresetRange) => {
     setPresetRange(preset);
@@ -256,6 +286,144 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
   const computedFormCPL = editingLeadsCount > 0 ? Math.round(parsedFormCost / editingLeadsCount) : null;
   const computedFormCostPerOrder = editingOrdersCount > 0 ? Math.round(parsedFormCost / editingOrdersCount) : null;
 
+  const handleOpenAddLead = () => {
+    setEditingLead(null);
+    setFormLeadDate(new Date().toISOString().split("T")[0]);
+    setFormLeadName("");
+    setFormLeadPhone("");
+    setFormLeadAddress("");
+    setFormLeadDemand("");
+    setFormLeadCampaignId(campaigns[0]?.id || "");
+    setFormLeadBranchId(HATICO_BRANCHES[0].id);
+    setFormLeadHandlerBranchId(HATICO_BRANCHES[0].id);
+    setFormLeadAssignedStaff("");
+    setFormLeadStatus("new");
+    setFormLeadOrderId("");
+    setFormLeadNotes("");
+    setLeadDupWarning(null);
+    setShowLeadModal(true);
+  };
+
+  const handleOpenEditLead = (lead: MarketingLeadItem) => {
+    setEditingLead(lead);
+    setFormLeadDate(lead.lead_date);
+    setFormLeadName(lead.full_name);
+    setFormLeadPhone(lead.phone);
+    setFormLeadAddress(lead.address || "");
+    setFormLeadDemand(lead.demand || "");
+    setFormLeadCampaignId(lead.campaign_id || "");
+    setFormLeadBranchId(lead.branch_id || HATICO_BRANCHES[0].id);
+    setFormLeadHandlerBranchId(lead.handler_branch_id || HATICO_BRANCHES[0].id);
+    setFormLeadAssignedStaff(lead.assigned_staff_name || "");
+    setFormLeadStatus(lead.status);
+    setFormLeadOrderId(lead.order_id || "");
+    setFormLeadNotes(lead.notes || "");
+    setLeadDupWarning(null);
+    setShowLeadModal(true);
+  };
+
+  const handleSaveLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formLeadName.trim() || !formLeadPhone.trim()) {
+      alert("Vui lòng nhập Họ tên và Số điện thoại khách hàng!");
+      return;
+    }
+    if (formLeadStatus === "closed" && !formLeadOrderId.trim()) {
+      alert("Khách hàng ở trạng thái Chốt đơn bắt buộc phải có Mã đơn hàng / Hợp đồng!");
+      return;
+    }
+
+    const payload: MarketingLeadItem = {
+      id: editingLead ? editingLead.id : "",
+      lead_date: formLeadDate,
+      full_name: formLeadName.trim(),
+      phone: formLeadPhone.trim(),
+      address: formLeadAddress.trim() || undefined,
+      demand: formLeadDemand.trim() || undefined,
+      source: platform,
+      source_type: "ads",
+      campaign_id: formLeadCampaignId || undefined,
+      branch_id: formLeadBranchId || undefined,
+      handler_branch_id: formLeadHandlerBranchId || undefined,
+      assigned_staff_name: formLeadAssignedStaff.trim() || undefined,
+      status: formLeadStatus,
+      order_id: formLeadOrderId.trim() || undefined,
+      notes: formLeadNotes.trim() || undefined,
+    };
+
+    const res = await saveMarketingLeadAction(payload);
+    if (res.error) {
+      alert(res.error);
+    } else {
+      setShowLeadModal(false);
+      showToast(editingLead ? "Đã cập nhật khách hàng!" : "Đã tạo khách hàng Ads mới!");
+      loadCampaigns();
+    }
+  };
+
+  const handleDeleteLead = async (id: string, name: string) => {
+    if (!confirm(`Bạn có chắc muốn xóa khách hàng "${name}"?`)) return;
+    const res = await deleteMarketingLeadAction(id);
+    if (res.success) {
+      showToast("Đã xóa khách hàng.");
+      loadCampaigns();
+    } else {
+      alert(res.error || "Không thể xóa khách hàng.");
+    }
+  };
+
+  const handleLeadPhoneBlur = async () => {
+    if (!formLeadPhone || formLeadPhone.length < 9) {
+      setLeadDupWarning(null);
+      return;
+    }
+    const res = await checkDuplicateLeadAction(formLeadPhone, editingLead ? editingLead.id : undefined);
+    if (res.isDuplicate && res.existingLead) {
+      setLeadDupWarning(
+        `Cảnh báo: SĐT này đã tồn tại (${res.existingLead.full_name} - ${res.existingLead.lead_date} - ${LEAD_STATUS_LABELS[res.existingLead.status as LeadStatus] || res.existingLead.status}).`
+      );
+    } else {
+      setLeadDupWarning(null);
+    }
+  };
+
+  const filteredAdsLeads = adsLeads.filter((l) => {
+    if (leadStatusFilter !== "all" && l.status !== leadStatusFilter) return false;
+    if (leadSearchTerm) {
+      const s = leadSearchTerm.toLowerCase();
+      const match =
+        l.full_name.toLowerCase().includes(s) ||
+        l.phone.toLowerCase().includes(s) ||
+        (l.demand && l.demand.toLowerCase().includes(s)) ||
+        (l.address && l.address.toLowerCase().includes(s));
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const leadPageSize = 10;
+  const totalLeadPages = Math.ceil(filteredAdsLeads.length / leadPageSize) || 1;
+  const paginatedAdsLeads = filteredAdsLeads.slice((leadPage - 1) * leadPageSize, leadPage * leadPageSize);
+
+  const getLeadStatusBadge = (status: LeadStatus) => {
+    switch (status) {
+      case "new":
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Mới quan tâm</span>;
+      case "consulted":
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">Đã tư vấn</span>;
+      case "discussing":
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Đang trao đổi</span>;
+      case "converted":
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">Đã chuyển đổi</span>;
+      case "closed":
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Đã chốt đơn</span>;
+      case "no_demand":
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Không có nhu cầu</span>;
+      default:
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">Khác</span>;
+    }
+  };
+
   const formatMoney = (val: number | null | undefined) => {
     if (val === null || val === undefined || isNaN(val)) return "—";
     return new Intl.NumberFormat("vi-VN").format(val) + " đ";
@@ -289,17 +457,50 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
       <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-slate-900">{title}</h2>
-          <p className="text-xs text-slate-500">Quản lý ngân sách, chi phí thực tế và tỷ lệ chuyển đổi đơn hàng</p>
+          <p className="text-xs text-slate-500">Quản lý ngân sách, chi phí thực tế và tỷ lệ chuyển đổi khách hàng</p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-lg shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <span>+</span>
-          <span>Tạo chiến dịch mới</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200/70">
+            <button
+              type="button"
+              onClick={() => setActiveTab("campaigns")}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors cursor-pointer ${
+                activeTab === "campaigns" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Chiến dịch Ads ({filtered.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("leads")}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors cursor-pointer ${
+                activeTab === "leads" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Khách hàng từ Ads ({adsLeads.length})
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleOpenAddLead}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
+            >
+              <span>+</span>
+              <span>Thêm khách hàng Ads</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-lg shadow-xs transition-colors cursor-pointer"
+            >
+              <span>+</span>
+              <span>Tạo chiến dịch mới</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ================= KPI CARDS ADS ================= */}
@@ -440,110 +641,263 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
       </div>
 
       {/* ================= BẢNG DANH SÁCH CHIẾN DỊCH ================= */}
-      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
-                <th className="py-2.5 px-3 min-w-[200px]">Tên chiến dịch</th>
-                <th className="py-2.5 px-3">Chi nhánh</th>
-                <th className="py-2.5 px-3">Thời gian chạy</th>
-                <th className="py-2.5 px-3 text-right">Chi phí thực tế</th>
-                <th className="py-2.5 px-3 text-right">
-                  {platform === "facebook_ads" ? "Tiếp cận" : "Lượt xem"}
-                </th>
-                <th className="py-2.5 px-3 text-center">Khách QT</th>
-                <th className="py-2.5 px-3 text-center">Tư vấn</th>
-                <th className="py-2.5 px-3 text-center">Đơn chốt</th>
-                <th className="py-2.5 px-3 text-right">CPL</th>
-                <th className="py-2.5 px-3 text-center">Trạng thái</th>
-                <th className="py-2.5 px-3 text-center">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="py-8 text-center text-slate-400 italic">
-                    Chưa có chiến dịch quảng cáo nào phù hợp với bộ lọc.
-                  </td>
+      {activeTab === "campaigns" && (
+        <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+                  <th className="py-2.5 px-3 min-w-[200px]">Tên chiến dịch</th>
+                  <th className="py-2.5 px-3">Chi nhánh</th>
+                  <th className="py-2.5 px-3">Thời gian chạy</th>
+                  <th className="py-2.5 px-3 text-right">Chi phí thực tế</th>
+                  <th className="py-2.5 px-3 text-right">
+                    {platform === "facebook_ads" ? "Tiếp cận" : "Lượt xem"}
+                  </th>
+                  <th className="py-2.5 px-3 text-center">Khách QT</th>
+                  <th className="py-2.5 px-3 text-center">Tư vấn</th>
+                  <th className="py-2.5 px-3 text-center">Đơn chốt</th>
+                  <th className="py-2.5 px-3 text-right">CPL</th>
+                  <th className="py-2.5 px-3 text-center">Trạng thái</th>
+                  <th className="py-2.5 px-3 text-center">Thao tác</th>
                 </tr>
-              ) : (
-                filtered.map((c) => {
-                  const bName = HATICO_BRANCHES.find((b) => b.id === c.branch_id)?.name || "Toàn quốc";
-                  const campLeads = leads.filter((l) => l.campaign_id === c.id);
-                  const leadsCount = campLeads.length;
-                  const consultedCount = campLeads.filter(
-                    (l) => l.status === "consulted" || l.status === "converted" || l.status === "closed" || Boolean(l.consulted_at)
-                  ).length;
-                  const ordersCount = campLeads.filter(
-                    (l) => l.status === "closed" || Boolean(l.order_id) || Boolean(l.closed_at)
-                  ).length;
-                  const cpl = leadsCount > 0 ? Math.round(c.actual_cost / leadsCount) : null;
-                  const dateRange = c.end_date ? `${c.start_date} → ${c.end_date}` : `Từ ${c.start_date}`;
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="py-8 text-center text-slate-400 italic">
+                      Chưa có chiến dịch quảng cáo nào phù hợp với bộ lọc.
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((c) => {
+                    const bName = HATICO_BRANCHES.find((b) => b.id === c.branch_id)?.name || "Toàn quốc";
+                    const campLeads = leads.filter((l) => l.campaign_id === c.id);
+                    const leadsCount = campLeads.length;
+                    const consultedCount = campLeads.filter(
+                      (l) => l.status === "consulted" || l.status === "converted" || l.status === "closed" || Boolean(l.consulted_at)
+                    ).length;
+                    const ordersCount = campLeads.filter(
+                      (l) => l.status === "closed" || Boolean(l.order_id) || Boolean(l.closed_at)
+                    ).length;
+                    const cpl = leadsCount > 0 ? Math.round(c.actual_cost / leadsCount) : null;
+                    const dateRange = c.end_date ? `${c.start_date} → ${c.end_date}` : `Từ ${c.start_date}`;
 
-                  return (
-                    <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3">
-                        <p className="font-bold text-slate-900">{c.name}</p>
-                        {c.target_objective && (
-                          <p className="text-[10px] text-slate-400">{c.target_objective}</p>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 whitespace-nowrap text-slate-600 font-medium">
-                        {bName}
-                      </td>
-                      <td className="py-2.5 px-3 whitespace-nowrap text-slate-500 font-mono text-[11px]">
-                        {dateRange}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-rose-600 whitespace-nowrap">
-                        {formatMoney(c.actual_cost)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-medium text-slate-700">
-                        {formatNumber(platform === "facebook_ads" ? c.reach : c.views)}
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-bold text-amber-600">
-                        {leadsCount}
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-medium text-sky-700">
-                        {consultedCount}
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-bold text-emerald-700">
-                        {ordersCount}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-primary whitespace-nowrap">
-                        {formatMoney(cpl)}
-                      </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        {getStatusBadge(c.status)}
-                      </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(c)}
-                            className="p-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-                            title="Sửa & Cập nhật số liệu"
-                          >
-                            ✎
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(c.id, c.name)}
-                            className="p-1 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Xóa chiến dịch"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2.5 px-3">
+                          <p className="font-bold text-slate-900">{c.name}</p>
+                          {c.target_objective && (
+                            <p className="text-[10px] text-slate-400">{c.target_objective}</p>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap text-slate-600 font-medium">
+                          {bName}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap text-slate-500 font-mono text-[11px]">
+                          {dateRange}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-rose-600 whitespace-nowrap">
+                          {formatMoney(c.actual_cost)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                          {formatNumber(platform === "facebook_ads" ? c.reach : c.views)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-bold text-amber-600">
+                          {leadsCount}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-medium text-sky-700">
+                          {consultedCount}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-bold text-emerald-700">
+                          {ordersCount}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-primary whitespace-nowrap">
+                          {formatMoney(cpl)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          {getStatusBadge(c.status)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(c)}
+                              className="p-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                              title="Sửa & Cập nhật số liệu"
+                            >
+                              ✎
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(c.id, c.name)}
+                              className="p-1 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Xóa chiến dịch"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ================= BẢNG DANH SÁCH KHÁCH HÀNG TỪ ADS ================= */}
+      {activeTab === "leads" && (
+        <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden space-y-0">
+          {/* Quick Lead Filters Bar */}
+          <div className="p-3 bg-slate-50/70 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-slate-700">Lọc khách hàng Ads:</span>
+              <input
+                type="text"
+                placeholder="Tìm tên, SĐT, nhu cầu..."
+                value={leadSearchTerm}
+                onChange={(e) => {
+                  setLeadSearchTerm(e.target.value);
+                  setLeadPage(1);
+                }}
+                className="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary w-48 sm:w-60"
+              />
+              <CustomSelect
+                value={leadStatusFilter}
+                onChange={(v) => {
+                  setLeadStatusFilter(String(v));
+                  setLeadPage(1);
+                }}
+                options={[
+                  { value: "all", label: "Tất cả trạng thái" },
+                  ...Object.entries(LEAD_STATUS_LABELS).map(([k, v]) => ({ value: k, label: v })),
+                ]}
+                className="w-44"
+                size="sm"
+              />
+            </div>
+            <div className="text-xs text-slate-500">
+              Tổng số: <strong className="text-slate-900">{filteredAdsLeads.length}</strong> khách hàng Ads
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+                  <th className="py-2.5 px-3 min-w-[90px]">Ngày tiếp nhận</th>
+                  <th className="py-2.5 px-3 min-w-[150px]">Họ tên khách hàng</th>
+                  <th className="py-2.5 px-3 min-w-[110px]">Số điện thoại</th>
+                  <th className="py-2.5 px-3 min-w-[140px]">Nhu cầu / Sản phẩm</th>
+                  <th className="py-2.5 px-3 min-w-[160px]">Chiến dịch Ads gắn kèm</th>
+                  <th className="py-2.5 px-3">Chi nhánh nguồn</th>
+                  <th className="py-2.5 px-3">Chi nhánh xử lý</th>
+                  <th className="py-2.5 px-3 text-center">Trạng thái</th>
+                  <th className="py-2.5 px-3">Mã đơn hàng</th>
+                  <th className="py-2.5 px-3">Nhân viên</th>
+                  <th className="py-2.5 px-3 text-center">Hành động</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedAdsLeads.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="py-10 text-center text-slate-400 italic">
+                      Chưa có khách hàng Ads nào phù hợp với bộ lọc.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedAdsLeads.map((l) => {
+                    const matchedCamp = campaigns.find((c) => c.id === l.campaign_id);
+                    return (
+                      <tr key={l.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2.5 px-3 whitespace-nowrap text-slate-500">{l.lead_date}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900">
+                          <div>{l.full_name}</div>
+                          {l.address && <div className="text-[11px] text-slate-400 font-normal">{l.address}</div>}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-medium text-slate-800">{l.phone}</td>
+                        <td className="py-2.5 px-3 text-slate-700 max-w-[160px] truncate">{l.demand || "—"}</td>
+                        <td className="py-2.5 px-3">
+                          {matchedCamp ? (
+                            <span className="inline-block max-w-[180px] truncate text-[11px] font-semibold text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20">
+                              {matchedCamp.name}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">Chưa gắn chiến dịch</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600">
+                          {HATICO_BRANCHES.find((b) => b.id === l.branch_id)?.name || "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600">
+                          {HATICO_BRANCHES.find((b) => b.id === l.handler_branch_id)?.name || "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">{getLeadStatusBadge(l.status)}</td>
+                        <td className="py-2.5 px-3 font-mono text-emerald-700 font-semibold">{l.order_id || "—"}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{l.assigned_staff_name || "—"}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditLead(l)}
+                              className="p-1 rounded-md text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                              title="Sửa khách hàng"
+                            >
+                              ✎
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteLead(l.id, l.full_name)}
+                              className="p-1 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Xóa khách hàng"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Lead Pagination */}
+          {totalLeadPages > 1 && (
+            <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-600">
+              <span>
+                Hiển thị {(leadPage - 1) * leadPageSize + 1} -{" "}
+                {Math.min(leadPage * leadPageSize, filteredAdsLeads.length)} của {filteredAdsLeads.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={leadPage <= 1}
+                  onClick={() => setLeadPage((p) => p - 1)}
+                  className="px-2 py-1 rounded-md bg-white border border-slate-200 disabled:opacity-40 cursor-pointer"
+                >
+                  Trang trước
+                </button>
+                <span className="px-2 font-bold text-slate-800">
+                  {leadPage} / {totalLeadPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={leadPage >= totalLeadPages}
+                  onClick={() => setLeadPage((p) => p + 1)}
+                  className="px-2 py-1 rounded-md bg-white border border-slate-200 disabled:opacity-40 cursor-pointer"
+                >
+                  Trang sau
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ================= MODAL TẠO / SỬA CHIẾN DỊCH ================= */}
       {showModal && (
@@ -758,6 +1112,208 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
                   className="px-4 py-1.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-bold cursor-pointer disabled:opacity-50"
                 >
                   {isPending ? "Đang lưu..." : "Lưu chiến dịch"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL TẠO / SỬA KHÁCH HÀNG TỪ ADS ================= */}
+      {showLeadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-xl w-full max-w-xl p-5 shadow-2xl border border-slate-200 space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900">
+                {editingLead ? "Cập nhật thông tin khách hàng Ads" : `Thêm khách hàng từ ${title}`}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowLeadModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {leadDupWarning && (
+              <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{leadDupWarning}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveLead} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Ngày tiếp nhận *</label>
+                  <input
+                    type="date"
+                    required
+                    value={formLeadDate}
+                    onChange={(e) => setFormLeadDate(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Gắn vào Chiến dịch Ads</label>
+                  <CustomSelect
+                    portal
+                    value={formLeadCampaignId}
+                    onChange={(v) => setFormLeadCampaignId(String(v))}
+                    options={[
+                      { value: "", label: "-- Không gắn chiến dịch cụ thể --" },
+                      ...campaigns.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
+                    className="w-full"
+                    size="md"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Họ tên khách hàng *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formLeadName}
+                    onChange={(e) => setFormLeadName(e.target.value)}
+                    placeholder="VD: Nguyễn Văn A"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Số điện thoại *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formLeadPhone}
+                    onChange={(e) => setFormLeadPhone(e.target.value)}
+                    onBlur={handleLeadPhoneBlur}
+                    placeholder="VD: 0912345678"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Địa chỉ / Tỉnh</label>
+                  <input
+                    type="text"
+                    value={formLeadAddress}
+                    onChange={(e) => setFormLeadAddress(e.target.value)}
+                    placeholder="VD: Bình Dương, Đồng Nai..."
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Nhu cầu / Sản phẩm</label>
+                  <input
+                    type="text"
+                    value={formLeadDemand}
+                    onChange={(e) => setFormLeadDemand(e.target.value)}
+                    placeholder="VD: Mooc ben Hatico, Mooc xương..."
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Chi nhánh tạo nguồn</label>
+                  <CustomSelect
+                    portal
+                    value={formLeadBranchId}
+                    onChange={(v) => setFormLeadBranchId(String(v))}
+                    options={HATICO_BRANCHES.map((b) => ({ value: b.id, label: b.name }))}
+                    className="w-full"
+                    size="md"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Chi nhánh xử lý</label>
+                  <CustomSelect
+                    portal
+                    value={formLeadHandlerBranchId}
+                    onChange={(v) => setFormLeadHandlerBranchId(String(v))}
+                    options={HATICO_BRANCHES.map((b) => ({ value: b.id, label: b.name }))}
+                    className="w-full"
+                    size="md"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Trạng thái xử lý</label>
+                  <CustomSelect
+                    portal
+                    value={formLeadStatus}
+                    onChange={(v) => setFormLeadStatus(v as LeadStatus)}
+                    options={Object.entries(LEAD_STATUS_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+                    className="w-full"
+                    size="md"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">
+                    Mã đơn hàng {formLeadStatus === "closed" && <span className="text-rose-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    value={formLeadOrderId}
+                    onChange={(e) => setFormLeadOrderId(e.target.value)}
+                    placeholder="VD: DH-ADS-001"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Nhân viên phụ trách</label>
+                  <input
+                    type="text"
+                    value={formLeadAssignedStaff}
+                    onChange={(e) => setFormLeadAssignedStaff(e.target.value)}
+                    placeholder="Tên nhân viên Sales/Marketing"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Ghi chú</label>
+                  <input
+                    type="text"
+                    value={formLeadNotes}
+                    onChange={(e) => setFormLeadNotes(e.target.value)}
+                    placeholder="Ghi chú thêm về tin nhắn, nhu cầu..."
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowLeadModal(false)}
+                  className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer font-medium"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-4 py-1.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {isPending ? "Đang lưu..." : "Lưu khách hàng"}
                 </button>
               </div>
             </form>
