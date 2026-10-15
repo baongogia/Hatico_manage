@@ -188,6 +188,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
 
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [errorMsg, setErrorMsg] = useState("");
+  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
   const [activeDatePicker, setActiveDatePicker] = useState<{
     rowId: string;
@@ -224,13 +225,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       const savedPosts = toEditablePostRows(fetchedPosts);
       const unsaved = prev.filter((p) => {
         if (!p.rowId.startsWith("new-")) return false;
-        if (
-          !p.title.trim() &&
-          !p.link.trim() &&
-          !p.views.trim() &&
-          !p.likes.trim()
-        )
-          return true;
+        if (!p.title.trim()) return false;
         const isSaved = savedPosts.some(
           (sp) =>
             sp.title === p.title &&
@@ -250,6 +245,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     }
     setSelectedPosts(new Set());
     setErrorMsg("");
+    setIsInitialLoaded(true);
   };
 
   const loadReports = (p: CallReportPeriod, sId: string) => {
@@ -260,6 +256,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         applyFetched(result.posts, result.events, result.marketingStaff);
       } else {
         setErrorMsg(result.error || "Không thể tải báo cáo");
+        setIsInitialLoaded(true);
       }
     });
   };
@@ -311,8 +308,19 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       if (p.platform.includes("Website")) website++;
     });
 
+    const total =
+      filterPlatform === "all"
+        ? tiktok + facebook + youtube + website
+        : filterPlatform === "Tiktok"
+        ? tiktok
+        : filterPlatform === "Facebook"
+        ? facebook
+        : filterPlatform === "Youtube"
+        ? youtube
+        : website;
+
     return {
-      total: displayedPosts.filter((p) => p.title.trim()).length,
+      total,
       tiktok,
       facebook,
       youtube,
@@ -322,7 +330,19 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       tiktokOver5k,
       tiktokOver10k,
     };
-  }, [displayedPosts]);
+  }, [displayedPosts, filterPlatform]);
+
+  const totalAllPostsCount = useMemo(() => {
+    return posts.reduce((acc, p) => {
+      if (!p.title.trim()) return acc;
+      let count = 0;
+      if (p.platform.includes("Tiktok")) count++;
+      if (p.platform.includes("Facebook")) count++;
+      if (p.platform.includes("Youtube")) count++;
+      if (p.platform.includes("Website")) count++;
+      return acc + (count || 1);
+    }, 0);
+  }, [posts]);
 
   const updatePostRow = (
     rowId: string,
@@ -360,9 +380,9 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     dirtyDatesRef.current.add(rowDate);
     setPosts((prev) => [row, ...prev]);
     setEditingRowIds((prev) => new Set(prev).add(row.rowId));
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       postTitleRefs.current.get(row.rowId)?.focus();
-    });
+    }, 40);
   };
 
   const toggleSelectPost = (rowId: string) => {
@@ -395,6 +415,15 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       next.delete(rowId);
       return next;
     });
+
+    setPosts((prev) => {
+      const target = prev.find((r) => r.rowId === rowId);
+      if (target && target.rowId.startsWith("new-") && !target.title.trim()) {
+        return prev.filter((r) => r.rowId !== rowId);
+      }
+      return prev;
+    });
+
     const currentPosts = latestPosts.current;
     const row = currentPosts.find((r) => r.rowId === rowId);
     if (row && row.title.trim()) {
@@ -551,20 +580,10 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     postMetrics.tiktokOver10k >= 1,
   ].filter(Boolean).length;
   const isKpiViewsPassed = conditionsMet >= 2;
+  const isLoaded = isInitialLoaded || posts.some((p) => p.title.trim());
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white relative">
-      {/* Saving Overlay Indicator */}
-      {isSaving && (
-        <div className="absolute top-3 right-4 z-30 flex items-center gap-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-md shadow-lg backdrop-blur-xs animate-fade-in">
-          <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span>Đang lưu...</span>
-        </div>
-      )}
-
       {/* Header Chrome (Compact & Quiet) */}
       <div className="border-b border-slate-200/90 px-4 py-2.5 shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white">
         <div className="min-w-0">
@@ -622,38 +641,42 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                 </span>
               </div>
               <span className="text-xs font-bold text-slate-900 font-mono">
-                {postMetrics.total} <span className="text-[10px] text-slate-400 font-normal">/ 65 bài</span>
+                {isLoaded ? postMetrics.total : "—"} <span className="text-[10px] text-slate-400 font-normal">/ 65 bài</span>
               </span>
             </div>
 
             <div className="grid grid-cols-5 gap-1 text-center divide-x divide-slate-200/60">
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {postMetrics.tiktok} <span className="text-[9px] text-slate-400 font-normal">/ 30</span>
+                  {isLoaded ? postMetrics.tiktok : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 30</span>
                 </p>
                 <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">TikTok</p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {postMetrics.facebook} <span className="text-[9px] text-slate-400 font-normal">/ 25</span>
+                  {isLoaded ? postMetrics.facebook : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 25</span>
                 </p>
                 <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Facebook</p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {postMetrics.youtube} <span className="text-[9px] text-slate-400 font-normal">/ 8</span>
+                  {isLoaded ? postMetrics.youtube : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 8</span>
                 </p>
                 <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">YouTube</p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {postMetrics.website} <span className="text-[9px] text-slate-400 font-normal">/ 2</span>
+                  {isLoaded ? postMetrics.website : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 2</span>
                 </p>
                 <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Website</p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {postMetrics.views >= 1000 ? `${(postMetrics.views / 1000).toFixed(1)}k` : postMetrics.views}{" "}
+                  {!isLoaded
+                    ? "—"
+                    : postMetrics.views >= 1000
+                    ? `${(postMetrics.views / 1000).toFixed(1)}k`
+                    : postMetrics.views}{" "}
                   <span className="text-[9px] text-slate-400 font-normal">/ 120k</span>
                 </p>
                 <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Lượt xem</p>
@@ -669,19 +692,27 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
               </span>
               <span
                 className={`text-[10px] font-medium px-2 py-0.5 rounded border ${
-                  isKpiViewsPassed
+                  !isLoaded
+                    ? "bg-slate-100 text-slate-400 border-slate-200/70"
+                    : isKpiViewsPassed
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200/70"
                     : "bg-slate-100 text-slate-600 border-slate-200/70"
                 }`}
               >
-                {isKpiViewsPassed ? "Đạt KPI" : `Đạt ${conditionsMet}/3 tiêu chí`}
+                {!isLoaded
+                  ? "—"
+                  : isKpiViewsPassed
+                  ? "Đạt KPI"
+                  : `Đạt ${conditionsMet}/3 tiêu chí`}
               </span>
             </div>
 
             <div className="grid grid-cols-3 gap-1 text-center divide-x divide-slate-200/60">
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {postMetrics.tiktokViews >= 1000
+                  {!isLoaded
+                    ? "—"
+                    : postMetrics.tiktokViews >= 1000
                     ? `${(postMetrics.tiktokViews / 1000).toFixed(1)}k`
                     : postMetrics.tiktokViews}{" "}
                   <span className="text-[9px] text-slate-400 font-normal">/ 60k</span>
@@ -690,13 +721,13 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {postMetrics.tiktokOver5k} <span className="text-[9px] text-slate-400 font-normal">/ 5</span>
+                  {isLoaded ? postMetrics.tiktokOver5k : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 5</span>
                 </p>
                 <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Video &gt; 5k</p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {postMetrics.tiktokOver10k} <span className="text-[9px] text-slate-400 font-normal">/ 1</span>
+                  {isLoaded ? postMetrics.tiktokOver10k : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 1</span>
                 </p>
                 <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Video &gt; 10k</p>
               </div>
@@ -714,7 +745,12 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
               className="w-40 sm:w-44"
             />
             <span className="h-9 px-3 rounded-md text-xs font-medium text-slate-600 bg-slate-100/90 border border-slate-200/70 flex items-center shadow-2xs">
-              {displayedPosts.length} / {posts.length} bài
+              {isLoaded ? postMetrics.total : "—"} / {isLoaded ? totalAllPostsCount : "—"} bài
+              {isLoaded && postMetrics.total !== displayedPosts.length && (
+                <span className="ml-1.5 text-[11px] text-slate-400 font-normal">
+                  ({displayedPosts.length} nội dung)
+                </span>
+              )}
             </span>
           </div>
 
@@ -868,22 +904,10 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {isPending ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12">
-                    <div className="flex flex-col items-center justify-center space-y-2">
-                      <svg className="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      <span className="text-slate-400 font-medium">Đang tải danh sách bài đăng...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : displayedPosts.length === 0 ? (
+              {displayedPosts.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-slate-400 italic font-medium">
-                    Chưa có bài đăng nào trong khoảng thời gian này
+                    {isInitialLoaded ? "Chưa có bài đăng nào trong khoảng thời gian này" : "—"}
                   </td>
                 </tr>
               ) : (
@@ -1022,7 +1046,10 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             onChange={(e) => updatePostRow(row.rowId, "title", e.target.value)}
                             onBlur={handleMarketingBlur}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") finishEditRow(row.rowId);
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                finishEditRow(row.rowId);
+                              }
                             }}
                             className="w-full h-8 px-2 text-xs font-semibold text-slate-900 bg-white border border-primary/40 rounded focus:outline-none focus:ring-1 focus:ring-primary/30 shadow-2xs"
                           />
@@ -1052,7 +1079,10 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             onChange={(e) => updatePostRow(row.rowId, "link", e.target.value)}
                             onBlur={handleMarketingBlur}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") finishEditRow(row.rowId);
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                finishEditRow(row.rowId);
+                              }
                             }}
                             className="w-full h-8 px-2 text-xs text-slate-700 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-primary/30 font-mono shadow-2xs"
                           />

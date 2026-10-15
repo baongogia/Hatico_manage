@@ -77,16 +77,19 @@ export function MarketingOverview() {
   };
 
   const formatNumber = (num: number | undefined | null) => {
-    if (num === null || num === undefined || isNaN(num)) return "0";
+    if (num === null || num === undefined || isNaN(num) || isPending || !kpis) return "—";
     return new Intl.NumberFormat("vi-VN").format(num);
   };
 
   const formatMoney = (num: number | undefined | null) => {
-    if (num === null || num === undefined || isNaN(num)) return "0 đ";
+    if (num === null || num === undefined || isNaN(num) || isPending || !kpis) return "—";
     return new Intl.NumberFormat("vi-VN").format(num) + " đ";
   };
 
   const renderTrendBadge = (current: number, prev: number, invert = false) => {
+    if (!kpis || isPending) {
+      return <span className="text-[11px] text-slate-400 font-medium">—</span>;
+    }
     if (prev === 0 && current === 0) {
       return <span className="text-[11px] text-slate-400 font-medium">0% vs kỳ trước</span>;
     }

@@ -70,6 +70,7 @@ export function LeadsPanel() {
 
   const [canViewFullPhone, setCanViewFullPhone] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Modal State
@@ -109,16 +110,20 @@ export function LeadsPanel() {
 
   const loadLeads = () => {
     startTransition(async () => {
-      const res = await getMarketingLeadsAction(
-        sourceFilter === "all" ? undefined : sourceFilter,
-        branchFilter === "all" ? undefined : branchFilter,
-        startDate || undefined,
-        endDate || undefined,
-        searchTerm || undefined
-      );
-      if (res.data) {
-        setLeads(res.data);
-        setCanViewFullPhone(!!res.canViewFullPhone);
+      try {
+        const res = await getMarketingLeadsAction(
+          sourceFilter === "all" ? undefined : sourceFilter,
+          branchFilter === "all" ? undefined : branchFilter,
+          startDate || undefined,
+          endDate || undefined,
+          searchTerm || undefined
+        );
+        if (res.data) {
+          setLeads(res.data);
+          setCanViewFullPhone(!!res.canViewFullPhone);
+        }
+      } finally {
+        setHasLoaded(true);
       }
     });
   };
@@ -341,7 +346,7 @@ export function LeadsPanel() {
         <div>
           <h2 className="text-base font-bold text-slate-900">Quản lý Khách hàng Marketing</h2>
           <p className="text-xs text-slate-500">
-            Dữ liệu tập trung chống trùng lặp, theo dõi phễu từ quan tâm đến chốt đơn ({filteredLeads.length} khách)
+            Dữ liệu tập trung chống trùng lặp, theo dõi phễu từ quan tâm đến chốt đơn ({!hasLoaded || isPending ? "—" : `${filteredLeads.length} khách`})
           </p>
         </div>
 

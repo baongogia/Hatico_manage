@@ -10,6 +10,11 @@ interface PeriodicKpiCardsProps {
 export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCardsProps) {
   const compLabel = reportType === "weekly" ? "so với tuần trước" : "so với tháng trước";
 
+  const formatKpiValue = (val: number | null | undefined, isCurrency = false) => {
+    if (val === null || val === undefined) return "—";
+    return isCurrency ? `${(val || 0).toLocaleString("vi-VN")} ₫` : (val || 0).toLocaleString("vi-VN");
+  };
+
   const cards: {
     key: keyof PeriodicReportKPIs;
     title: string;
@@ -21,7 +26,7 @@ export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCa
     {
       key: "totalContents",
       title: "Tổng nội dung đã đăng",
-      value: (kpis.totalContents || 0).toLocaleString("vi-VN"),
+      value: formatKpiValue(kpis?.totalContents),
       colorClass: "text-blue-600 bg-blue-50 border-blue-100",
       icon: (
         <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -32,7 +37,7 @@ export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCa
     {
       key: "totalViews",
       title: "Tổng lượt xem",
-      value: (kpis.totalViews || 0).toLocaleString("vi-VN"),
+      value: formatKpiValue(kpis?.totalViews),
       colorClass: "text-indigo-600 bg-indigo-50 border-indigo-100",
       icon: (
         <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,7 +49,7 @@ export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCa
     {
       key: "totalInteractions",
       title: "Tổng lượt tương tác",
-      value: (kpis.totalInteractions || 0).toLocaleString("vi-VN"),
+      value: formatKpiValue(kpis?.totalInteractions),
       colorClass: "text-purple-600 bg-purple-50 border-purple-100",
       icon: (
         <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -55,7 +60,7 @@ export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCa
     {
       key: "totalLeads",
       title: "Tổng khách quan tâm",
-      value: (kpis.totalLeads || 0).toLocaleString("vi-VN"),
+      value: formatKpiValue(kpis?.totalLeads),
       colorClass: "text-amber-600 bg-amber-50 border-amber-100",
       icon: (
         <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -66,7 +71,7 @@ export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCa
     {
       key: "totalConsulted",
       title: "Tổng khách được tư vấn",
-      value: (kpis.totalConsulted || 0).toLocaleString("vi-VN"),
+      value: formatKpiValue(kpis?.totalConsulted),
       colorClass: "text-sky-600 bg-sky-50 border-sky-100",
       icon: (
         <svg className="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -77,7 +82,7 @@ export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCa
     {
       key: "totalConverted",
       title: "Khách chuyển đổi thực tế",
-      value: (kpis.totalConverted || 0).toLocaleString("vi-VN"),
+      value: formatKpiValue(kpis?.totalConverted),
       colorClass: "text-teal-600 bg-teal-50 border-teal-100",
       icon: (
         <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,7 +93,7 @@ export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCa
     {
       key: "totalOrders",
       title: "Đơn hàng chốt thành công",
-      value: (kpis.totalOrders || 0).toLocaleString("vi-VN"),
+      value: formatKpiValue(kpis?.totalOrders),
       colorClass: "text-emerald-600 bg-emerald-50 border-emerald-100",
       icon: (
         <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,7 +104,7 @@ export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCa
     {
       key: "totalAdSpend",
       title: "Tổng chi phí quảng cáo",
-      value: `${(kpis.totalAdSpend || 0).toLocaleString("vi-VN")} ₫`,
+      value: formatKpiValue(kpis?.totalAdSpend, true),
       isCurrency: true,
       colorClass: "text-rose-600 bg-rose-50 border-rose-100",
       icon: (

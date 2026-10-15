@@ -903,8 +903,20 @@ export async function calculateMarketingDashboardMetrics(filter: MarketingFilter
     prevEndDate
   );
 
+  const countContentPlatformPosts = (items: typeof currentContents) => {
+    return items.reduce((acc, c) => {
+      let count = 0;
+      const p = (c.platform_raw || c.platform || "").toLowerCase();
+      if (p.includes("tiktok")) count++;
+      if (p.includes("facebook")) count++;
+      if (p.includes("youtube")) count++;
+      if (p.includes("website")) count++;
+      return acc + (count || 1);
+    }, 0);
+  };
+
   // --- Aggregate Current Period ---
-  const totalContents = currentContents.length;
+  const totalContents = countContentPlatformPosts(currentContents);
   const totalViews = currentContents.reduce((s, c) => s + (Number(c.views) || 0), 0);
   const totalInteractions = currentContents.reduce((s, c) => s + (Number(c.interactions) || 0), 0);
 
@@ -920,7 +932,7 @@ export async function calculateMarketingDashboardMetrics(filter: MarketingFilter
   const totalAdCost = currentCampaigns.reduce((s, c) => s + (Number(c.actual_cost) || 0), 0);
 
   // --- Aggregate Previous Period ---
-  const prevTotalContents = prevContents.length;
+  const prevTotalContents = countContentPlatformPosts(prevContents);
   const prevTotalViews = prevContents.reduce((s, c) => s + (Number(c.views) || 0), 0);
   const prevTotalInteractions = prevContents.reduce((s, c) => s + (Number(c.interactions) || 0), 0);
 

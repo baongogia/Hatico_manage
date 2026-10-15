@@ -181,8 +181,14 @@ async function computePeriodMetrics(
   // Distinct system leads (không đếm trùng)
   const systemLeadStats = countStatus(leads);
 
+  const totalChannelContentCount =
+    channelContents.facebook.length +
+    channelContents.tiktok.length +
+    channelContents.youtube.length +
+    channelContents.website.length;
+
   const channelTotals = {
-    contentCount: contents.length,
+    contentCount: totalChannelContentCount,
     views: fbViews + ttViews + ytViews + wsViews,
     interactions: fbInteractions + ttInteractions + ytInteractions,
     leads: systemLeadStats.total,
@@ -320,7 +326,7 @@ async function computePeriodMetrics(
   const totalSystemBranch: BranchResultRow = {
     branchId: "all",
     branchName: "Toàn hệ thống",
-    contentCount: contents.length,
+    contentCount: totalChannelContentCount,
     leads: systemLeadStats.total,
     consulted: systemLeadStats.consulted,
     converted: systemLeadStats.converted,
@@ -330,7 +336,7 @@ async function computePeriodMetrics(
 
   // 4. TỔNG HỢP 8 CHỈ SỐ KPI CHÍNH
   const kpis: PeriodicReportKPIs = {
-    totalContents: contents.length,
+    totalContents: totalChannelContentCount,
     totalViews: channelTotals.views,
     totalInteractions: channelTotals.interactions,
     totalLeads: systemLeadStats.total,

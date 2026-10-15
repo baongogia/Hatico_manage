@@ -16,12 +16,17 @@ export function BranchesPanel() {
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
 
   const [isPending, startTransition] = useTransition();
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const loadData = () => {
     startTransition(async () => {
-      const res = await getMarketingDashboardAction(filter);
-      if (res.data) {
-        setBranchRows(res.data.branchPerformance);
+      try {
+        const res = await getMarketingDashboardAction(filter);
+        if (res.data) {
+          setBranchRows(res.data.branchPerformance);
+        }
+      } finally {
+        setHasLoaded(true);
       }
     });
   };
@@ -30,9 +35,10 @@ export function BranchesPanel() {
     loadData();
   }, [filter.dateRange]);
 
-  const formatNumber = (num: number) => new Intl.NumberFormat("vi-VN").format(num);
-  const formatMoney = (num: number) =>
-    num > 0 ? new Intl.NumberFormat("vi-VN").format(num) + " đ" : "0 đ";
+  const formatNumber = (num: number | null | undefined) =>
+    !hasLoaded || isPending ? "—" : new Intl.NumberFormat("vi-VN").format(num || 0);
+  const formatMoney = (num: number | null | undefined) =>
+    !hasLoaded || isPending ? "—" : (num ? `${new Intl.NumberFormat("vi-VN").format(num)} đ` : "0 đ");
 
   const selectedBranchData = branchRows.find((b) => b.branchId === selectedBranchId);
 
@@ -174,19 +180,19 @@ export function BranchesPanel() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70">
               <span className="text-[10px] text-slate-500 uppercase font-bold">Bài đăng / Video</span>
-              <p className="text-xl font-black text-slate-900 mt-1">{selectedBranchData.contentsCount}</p>
+              <p className="text-xl font-black text-slate-900 mt-1">{formatNumber(selectedBranchData.contentsCount)}</p>
               <p className="text-[10px] text-slate-400 mt-0.5">Nội dung sản xuất</p>
             </div>
 
             <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/70">
               <span className="text-[10px] text-amber-800 uppercase font-bold">Khách tạo nguồn</span>
-              <p className="text-xl font-black text-amber-700 mt-1">{selectedBranchData.leadsCount}</p>
+              <p className="text-xl font-black text-amber-700 mt-1">{formatNumber(selectedBranchData.leadsCount)}</p>
               <p className="text-[10px] text-amber-600 mt-0.5">Phát sinh từ kênh chi nhánh</p>
             </div>
 
             <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200/70">
               <span className="text-[10px] text-emerald-800 uppercase font-bold">Đơn hàng chốt</span>
-              <p className="text-xl font-black text-emerald-700 mt-1">{selectedBranchData.ordersCount}</p>
+              <p className="text-xl font-black text-emerald-700 mt-1">{formatNumber(selectedBranchData.ordersCount)}</p>
               <p className="text-[10px] text-emerald-600 mt-0.5">Từ nguồn Marketing chi nhánh</p>
             </div>
 
@@ -210,7 +216,9 @@ export function BranchesPanel() {
             <div className="text-right shrink-0">
               <span className="text-xs font-bold text-primary">
                 Tỷ lệ chốt đơn tiếp nhận:{" "}
-                {selectedBranchData.handledLeadsCount > 0
+                {!hasLoaded || isPending
+                  ? "—"
+                  : selectedBranchData.handledLeadsCount > 0
                   ? `${((selectedBranchData.handledOrdersCount / selectedBranchData.handledLeadsCount) * 100).toFixed(1)}%`
                   : "0%"}
               </span>

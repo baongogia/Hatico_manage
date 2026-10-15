@@ -103,6 +103,7 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
   };
 
   const [isPending, startTransition] = useTransition();
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Modal State
@@ -130,25 +131,29 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
 
   const loadCampaigns = () => {
     startTransition(async () => {
-      const [campRes, leadsRes] = await Promise.all([
-        getMarketingCampaignsAction(
-          platform,
-          selectedBranch === "all" ? undefined : selectedBranch,
-          startDate || undefined,
-          endDate || undefined
-        ),
-        getMarketingLeadsAction(
-          undefined,
-          selectedBranch === "all" ? undefined : selectedBranch,
-          startDate || undefined,
-          endDate || undefined
-        ),
-      ]);
-      if (campRes.data) {
-        setCampaigns(campRes.data);
-      }
-      if (leadsRes.data) {
-        setLeads(leadsRes.data);
+      try {
+        const [campRes, leadsRes] = await Promise.all([
+          getMarketingCampaignsAction(
+            platform,
+            selectedBranch === "all" ? undefined : selectedBranch,
+            startDate || undefined,
+            endDate || undefined
+          ),
+          getMarketingLeadsAction(
+            undefined,
+            selectedBranch === "all" ? undefined : selectedBranch,
+            startDate || undefined,
+            endDate || undefined
+          ),
+        ]);
+        if (campRes.data) {
+          setCampaigns(campRes.data);
+        }
+        if (leadsRes.data) {
+          setLeads(leadsRes.data);
+        }
+      } finally {
+        setHasLoaded(true);
       }
     });
   };
@@ -425,10 +430,15 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
   };
 
   const formatMoney = (val: number | null | undefined) => {
-    if (val === null || val === undefined || isNaN(val)) return "—";
+    if (!hasLoaded || isPending) return "—";
+    if (val === null || val === undefined || isNaN(val) || val === 0) return "0 đ";
     return new Intl.NumberFormat("vi-VN").format(val) + " đ";
   };
-  const formatNumber = (val: number) => new Intl.NumberFormat("vi-VN").format(val);
+  const formatNumber = (val: number | null | undefined) => {
+    if (!hasLoaded || isPending) return "—";
+    if (val === null || val === undefined || isNaN(val) || val === 0) return "0";
+    return new Intl.NumberFormat("vi-VN").format(val);
+  };
 
   const getStatusBadge = (st: CampaignStatus) => {
     switch (st) {
@@ -469,7 +479,7 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
                 activeTab === "campaigns" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Chiến dịch Ads ({filtered.length})
+              Chiến dịch Ads ({!hasLoaded || isPending ? "—" : filtered.length})
             </button>
             <button
               type="button"
@@ -478,7 +488,7 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
                 activeTab === "leads" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Khách hàng từ Ads ({adsLeads.length})
+              Khách hàng từ Ads ({!hasLoaded || isPending ? "—" : adsLeads.length})
             </button>
           </div>
 
@@ -507,7 +517,7 @@ export function CampaignPanel({ platform, title }: CampaignPanelProps) {
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
         <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Tổng chiến dịch</span>
-          <p className="text-xl font-black text-slate-900 mt-0.5">{totalCampaigns}</p>
+          <p className="text-xl font-black text-slate-900 mt-0.5">{!hasLoaded || isPending ? "—" : totalCampaigns}</p>
         </div>
         <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs col-span-2 sm:col-span-1 lg:col-span-1">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Chi phí thực tế</span>

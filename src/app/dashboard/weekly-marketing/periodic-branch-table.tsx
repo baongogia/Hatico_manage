@@ -10,8 +10,10 @@ export function PeriodicBranchTable({
   branchResults,
   totalSystem,
 }: PeriodicBranchTableProps) {
-  const formatCost = (val: number) => `${val.toLocaleString("vi-VN")} ₫`;
-  const formatNum = (val: number) => val.toLocaleString("vi-VN");
+  const formatCost = (val: number | null | undefined) =>
+    val === null || val === undefined ? "—" : `${val.toLocaleString("vi-VN")} ₫`;
+  const formatNum = (val: number | null | undefined) =>
+    val === null || val === undefined ? "—" : val.toLocaleString("vi-VN");
 
   return (
     <div className="overflow-x-auto border border-slate-200/90 rounded-[4px] bg-white shadow-2xs print:border-slate-300 print:shadow-none">

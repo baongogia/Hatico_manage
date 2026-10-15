@@ -103,6 +103,7 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
   };
 
   const [isPending, startTransition] = useTransition();
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Modal State for Add / Edit
@@ -134,25 +135,29 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
 
   const loadData = () => {
     startTransition(async () => {
-      const [contentRes, leadsRes] = await Promise.all([
-        getMarketingContentsAction(
-          platform,
-          selectedBranch === "all" ? undefined : selectedBranch,
-          startDate || undefined,
-          endDate || undefined
-        ),
-        getMarketingLeadsAction(
-          undefined,
-          selectedBranch === "all" ? undefined : selectedBranch,
-          startDate || undefined,
-          endDate || undefined
-        ),
-      ]);
-      if (contentRes.data) {
-        setItems(contentRes.data);
-      }
-      if (leadsRes.data) {
-        setLeads(leadsRes.data);
+      try {
+        const [contentRes, leadsRes] = await Promise.all([
+          getMarketingContentsAction(
+            platform,
+            selectedBranch === "all" ? undefined : selectedBranch,
+            startDate || undefined,
+            endDate || undefined
+          ),
+          getMarketingLeadsAction(
+            undefined,
+            selectedBranch === "all" ? undefined : selectedBranch,
+            startDate || undefined,
+            endDate || undefined
+          ),
+        ]);
+        if (contentRes.data) {
+          setItems(contentRes.data);
+        }
+        if (leadsRes.data) {
+          setLeads(leadsRes.data);
+        }
+      } finally {
+        setHasLoaded(true);
       }
     });
   };
@@ -432,6 +437,10 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
   const shortVideosCount = filteredItems.filter((i) => i.content_type === "Reels" || i.content_type === "Shorts" || i.content_type === "Video ngắn").length;
 
   const formatNumber = (num: number) => new Intl.NumberFormat("vi-VN").format(num);
+  const formatMetric = (val: number | null | undefined) => {
+    if (!hasLoaded || isPending) return "—";
+    return formatNumber(val || 0);
+  };
 
   return (
     <div className="space-y-4">
@@ -468,7 +477,7 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                 activeTab === "contents" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Danh sách nội dung ({filteredItems.length})
+              Danh sách nội dung ({!hasLoaded || isPending ? "—" : filteredItems.length})
             </button>
             <button
               type="button"
@@ -477,7 +486,7 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                 activeTab === "leads" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Khách hàng kênh ({channelLeads.length})
+              Khách hàng kênh ({!hasLoaded || isPending ? "—" : channelLeads.length})
             </button>
           </div>
 
@@ -632,13 +641,15 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 {platform === "website" ? "Tổng bài viết" : "Tổng nội dung đã đăng"}
               </span>
-              <p className="text-2xl font-black text-slate-900 mt-1">{formatNumber(totalPosts)}</p>
-              {platform === "facebook" && (
+              <p className="text-2xl font-black text-slate-900 mt-1">
+                {!hasLoaded || isPending ? "—" : formatNumber(totalPosts)}
+              </p>
+              {hasLoaded && !isPending && platform === "facebook" && (
                 <p className="text-[10px] text-slate-500 mt-0.5">
                   {regularPostsCount} bài viết · {shortVideosCount} Reels/Video
                 </p>
               )}
-              {platform === "youtube" && (
+              {hasLoaded && !isPending && platform === "youtube" && (
                 <p className="text-[10px] text-slate-500 mt-0.5">
                   {regularPostsCount} video dài · {shortVideosCount} Shorts
                 </p>
@@ -649,7 +660,7 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 {platform === "website" ? "Tổng lượt xem trang" : "Tổng lượt xem"}
               </span>
-              <p className="text-2xl font-black text-slate-900 mt-1">{formatNumber(totalViews)}</p>
+              <p className="text-2xl font-black text-slate-900 mt-1">{formatMetric(totalViews)}</p>
             </div>
 
             <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
@@ -657,34 +668,38 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                 {platform === "website" ? "Khách đăng ký/Liên hệ" : "Tổng tương tác"}
               </span>
               <p className="text-2xl font-black text-slate-900 mt-1">
-                {formatNumber(platform === "website" ? totalLeads : totalInteractions)}
+                {formatMetric(platform === "website" ? totalLeads : totalInteractions)}
               </p>
             </div>
 
             <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Khách quan tâm</span>
-              <p className="text-2xl font-black text-amber-600 mt-1">{formatNumber(totalLeads)}</p>
+              <p className="text-2xl font-black text-amber-600 mt-1">{formatMetric(totalLeads)}</p>
             </div>
 
             <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Khách được tư vấn</span>
-              <p className="text-2xl font-black text-sky-700 mt-1">{formatNumber(totalConsulted)}</p>
+              <p className="text-2xl font-black text-sky-700 mt-1">{formatMetric(totalConsulted)}</p>
             </div>
 
             <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Khách chuyển đổi</span>
-              <p className="text-2xl font-black text-teal-700 mt-1">{formatNumber(totalConverted)}</p>
+              <p className="text-2xl font-black text-teal-700 mt-1">{formatMetric(totalConverted)}</p>
             </div>
 
             <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Đơn hàng chốt</span>
-              <p className="text-2xl font-black text-emerald-700 mt-1">{formatNumber(totalOrders)}</p>
+              <p className="text-2xl font-black text-emerald-700 mt-1">{formatMetric(totalOrders)}</p>
             </div>
 
             <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-center">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tỷ lệ chốt / quan tâm</span>
               <p className="text-xl font-black text-primary mt-1">
-                {totalLeads > 0 ? `${((totalOrders / totalLeads) * 100).toFixed(1)}%` : "0%"}
+                {!hasLoaded || isPending
+                  ? "—"
+                  : totalLeads > 0
+                  ? `${((totalOrders / totalLeads) * 100).toFixed(1)}%`
+                  : "0%"}
               </p>
             </div>
           </div>
@@ -695,7 +710,7 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Khách hàng mới nhất từ {title} ({channelLeads.length})
+                  Khách hàng mới nhất từ {title} ({!hasLoaded || isPending ? "—" : channelLeads.length})
                 </h3>
               </div>
               <div className="flex items-center gap-2">
@@ -711,7 +726,7 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                   onClick={() => setActiveTab("leads")}
                   className="px-2.5 py-1 text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
                 >
-                  Xem toàn bộ ({channelLeads.length}) →
+                  Xem toàn bộ ({!hasLoaded || isPending ? "—" : channelLeads.length}) →
                 </button>
               </div>
             </div>
@@ -815,18 +830,18 @@ export function ChannelReportPanel({ platform, title }: ChannelReportPanelProps)
                         </td>
                       )}
                       <td className="py-2.5 px-3 text-right font-medium text-slate-800">
-                        {formatNumber(item.views)}
+                        {formatMetric(Number(item.views))}
                       </td>
                       {platform !== "website" && (
                         <td className="py-2.5 px-3 text-right font-medium text-slate-800">
-                          {formatNumber(item.interactions)}
+                          {formatMetric(Number(item.interactions))}
                         </td>
                       )}
                       <td className="py-2.5 px-3 text-center font-bold text-amber-600">
-                        {leads.filter((l) => l.content_id === item.id).length}
+                        {!hasLoaded || isPending ? "—" : leads.filter((l) => l.content_id === item.id).length}
                       </td>
                       <td className="py-2.5 px-3 text-center font-bold text-emerald-700">
-                        {leads.filter((l) => l.content_id === item.id && (l.status === "closed" || Boolean(l.order_id) || Boolean(l.closed_at))).length}
+                        {!hasLoaded || isPending ? "—" : leads.filter((l) => l.content_id === item.id && (l.status === "closed" || Boolean(l.order_id) || Boolean(l.closed_at))).length}
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
