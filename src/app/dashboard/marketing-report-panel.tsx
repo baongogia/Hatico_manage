@@ -14,6 +14,7 @@ import type {
   CallReportPeriod,
 } from "@/lib/report-data";
 import AdminSelect from "./admin-select";
+import { HATICO_BRANCHES } from "@/lib/marketing-types";
 import { downloadMarketingReportExcel } from "@/lib/marketing-report-export";
 import { MarketingExcelPreviewModal } from "./marketing-excel-preview-modal";
 import DatePickerModal, { formatDateButtonLabel } from "./date-picker-modal";
@@ -97,7 +98,7 @@ function togglePlatform(currentPlatforms: string, platformToToggle: string) {
   }
 }
 
-function newEmptyPostRow(todayStr: string): EditablePostRow {
+function newEmptyPostRow(todayStr: string, branchId?: string): EditablePostRow {
   const newId = crypto.randomUUID();
   return {
     type: "marketing_post",
@@ -113,12 +114,15 @@ function newEmptyPostRow(todayStr: string): EditablePostRow {
     comments: "",
     shares: "",
     status: "completed",
+    branch_id: branchId || HATICO_BRANCHES[0].id,
   };
 }
 
 export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   const todayStr = useMemo(() => {
-    return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
+    return new Date().toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Ho_Chi_Minh",
+    });
   }, []);
   const isAdmin = profile.role === "admin";
 
@@ -135,8 +139,19 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     return `${yyyy}-${mm}`;
   });
   const [filterPlatform, setFilterPlatform] = useState<string>("all");
+  const [filterBranch, setFilterBranch] = useState<string>("all");
 
   const [editingRowIds, setEditingRowIds] = useState<Set<string>>(new Set());
+
+  const branchOptions = useMemo(() => {
+    return [
+      { value: "all", label: "Tất cả chi nhánh" },
+      ...HATICO_BRANCHES.map((b) => ({
+        value: b.id,
+        label: b.name,
+      })),
+    ];
+  }, []);
 
   const monthOptions = useMemo(() => {
     const options = [{ value: "all", label: "Tất cả các tháng" }];
@@ -178,9 +193,13 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       if (filterPlatform !== "all") {
         if (!post.platform.includes(filterPlatform)) return false;
       }
+      if (filterBranch !== "all") {
+        const postBranch = post.branch_id || HATICO_BRANCHES[0].id;
+        if (postBranch !== filterBranch) return false;
+      }
       return true;
     });
-  }, [posts, filterMonth, filterPlatform]);
+  }, [posts, filterMonth, filterPlatform, filterBranch]);
 
   const [marketingStaff, setMarketingStaff] = useState<
     { id: string; full_name: string }[]
@@ -288,12 +307,12 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         rawViews.includes(">10k") || rawViews.includes("> 10k")
           ? 10000
           : rawViews.includes(">5k") || rawViews.includes("> 5k")
-          ? 5000
-          : rawViews.includes(">2k") || rawViews.includes("> 2k")
-          ? 2000
-          : rawViews.includes(">1k") || rawViews.includes("> 1k")
-          ? 1000
-          : parseInt(rawViews.replace(/[^0-9]/g, "")) || 0;
+            ? 5000
+            : rawViews.includes(">2k") || rawViews.includes("> 2k")
+              ? 2000
+              : rawViews.includes(">1k") || rawViews.includes("> 1k")
+                ? 1000
+                : parseInt(rawViews.replace(/[^0-9]/g, "")) || 0;
 
       views += v;
 
@@ -312,12 +331,12 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       filterPlatform === "all"
         ? tiktok + facebook + youtube + website
         : filterPlatform === "Tiktok"
-        ? tiktok
-        : filterPlatform === "Facebook"
-        ? facebook
-        : filterPlatform === "Youtube"
-        ? youtube
-        : website;
+          ? tiktok
+          : filterPlatform === "Facebook"
+            ? facebook
+            : filterPlatform === "Youtube"
+              ? youtube
+              : website;
 
     return {
       total,
@@ -335,6 +354,10 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   const totalAllPostsCount = useMemo(() => {
     return posts.reduce((acc, p) => {
       if (!p.title.trim()) return acc;
+      if (filterBranch !== "all") {
+        const postBranch = p.branch_id || HATICO_BRANCHES[0].id;
+        if (postBranch !== filterBranch) return acc;
+      }
       let count = 0;
       if (p.platform.includes("Tiktok")) count++;
       if (p.platform.includes("Facebook")) count++;
@@ -342,7 +365,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       if (p.platform.includes("Website")) count++;
       return acc + (count || 1);
     }, 0);
-  }, [posts]);
+  }, [posts, filterBranch]);
 
   const updatePostRow = (
     rowId: string,
@@ -376,7 +399,9 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
 
   const handleAddPostRow = (dateStr?: string) => {
     const rowDate = dateStr || todayStr;
-    const row = newEmptyPostRow(rowDate);
+    const targetBranch =
+      filterBranch !== "all" ? filterBranch : HATICO_BRANCHES[0].id;
+    const row = newEmptyPostRow(rowDate, targetBranch);
     dirtyDatesRef.current.add(rowDate);
     setPosts((prev) => [row, ...prev]);
     setEditingRowIds((prev) => new Set(prev).add(row.rowId));
@@ -470,6 +495,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       if (!datesToSave.has(post.report_date) || !post.title.trim()) return;
       const grp = byDate.get(post.report_date)!;
       grp.posts.push({
+        id: post.id,
         platform: post.platform,
         title: post.title.trim(),
         link: post.link.trim(),
@@ -478,11 +504,18 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         comments: post.comments.trim(),
         shares: post.shares.trim(),
         status: post.status,
+        topic: post.topic,
+        content_type: post.content_type,
+        branch_id:
+          post.branch_id ||
+          (filterBranch !== "all" ? filterBranch : HATICO_BRANCHES[0].id),
+        author_id: post.author_id,
       });
     });
 
     currentEvents.forEach((event) => {
-      if (!datesToSave.has(event.event_date) || !event.event_name.trim()) return;
+      if (!datesToSave.has(event.event_date) || !event.event_name.trim())
+        return;
       const grp = byDate.get(event.event_date)!;
       grp.events.push({
         event_name: event.event_name.trim(),
@@ -540,9 +573,12 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         {
           period,
           staffName: staffLabel,
-          branchName: profile.department?.branch
-            ? `${profile.department.name} - ${profile.department.branch.name}`
-            : profile.department?.name,
+          branchName:
+            filterBranch !== "all"
+              ? HATICO_BRANCHES.find((b) => b.id === filterBranch)?.name
+              : profile.department?.branch
+                ? `${profile.department.name} - ${profile.department.branch.name}`
+                : profile.department?.name,
           posts: displayedPosts.filter((p) => p.title.trim()),
           events: events.filter((e) => e.event_name.trim()),
         },
@@ -617,8 +653,18 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
             disabled={isPending}
             className="h-9 flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 shadow-2xs cursor-pointer px-3.5 transition-colors disabled:opacity-60"
           >
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <svg
+              className="w-3.5 h-3.5 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
             </svg>
             <span>Xuất Excel</span>
           </button>
@@ -641,45 +687,72 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                 </span>
               </div>
               <span className="text-xs font-bold text-slate-900 font-mono">
-                {isLoaded ? postMetrics.total : "—"} <span className="text-[10px] text-slate-400 font-normal">/ 65 bài</span>
+                {isLoaded ? postMetrics.total : "—"}{" "}
+                <span className="text-[10px] text-slate-400 font-normal">
+                  / 65 bài
+                </span>
               </span>
             </div>
 
             <div className="grid grid-cols-5 gap-1 text-center divide-x divide-slate-200/60">
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {isLoaded ? postMetrics.tiktok : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 30</span>
+                  {isLoaded ? postMetrics.tiktok : "—"}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">
+                    / 30
+                  </span>
                 </p>
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">TikTok</p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">
+                  TikTok
+                </p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {isLoaded ? postMetrics.facebook : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 25</span>
+                  {isLoaded ? postMetrics.facebook : "—"}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">
+                    / 25
+                  </span>
                 </p>
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Facebook</p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">
+                  Facebook
+                </p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {isLoaded ? postMetrics.youtube : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 8</span>
+                  {isLoaded ? postMetrics.youtube : "—"}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">
+                    / 8
+                  </span>
                 </p>
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">YouTube</p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">
+                  YouTube
+                </p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {isLoaded ? postMetrics.website : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 2</span>
+                  {isLoaded ? postMetrics.website : "—"}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">
+                    / 2
+                  </span>
                 </p>
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Website</p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">
+                  Website
+                </p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
                   {!isLoaded
                     ? "—"
                     : postMetrics.views >= 1000
-                    ? `${(postMetrics.views / 1000).toFixed(1)}k`
-                    : postMetrics.views}{" "}
-                  <span className="text-[9px] text-slate-400 font-normal">/ 120k</span>
+                      ? `${(postMetrics.views / 1000).toFixed(1)}k`
+                      : postMetrics.views}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">
+                    / 120k
+                  </span>
                 </p>
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Lượt xem</p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">
+                  Lượt xem
+                </p>
               </div>
             </div>
           </div>
@@ -695,15 +768,15 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                   !isLoaded
                     ? "bg-slate-100 text-slate-400 border-slate-200/70"
                     : isKpiViewsPassed
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200/70"
-                    : "bg-slate-100 text-slate-600 border-slate-200/70"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200/70"
+                      : "bg-slate-100 text-slate-600 border-slate-200/70"
                 }`}
               >
                 {!isLoaded
                   ? "—"
                   : isKpiViewsPassed
-                  ? "Đạt KPI"
-                  : `Đạt ${conditionsMet}/3 tiêu chí`}
+                    ? "Đạt KPI"
+                    : `Đạt ${conditionsMet}/3 tiêu chí`}
               </span>
             </div>
 
@@ -713,29 +786,43 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                   {!isLoaded
                     ? "—"
                     : postMetrics.tiktokViews >= 1000
-                    ? `${(postMetrics.tiktokViews / 1000).toFixed(1)}k`
-                    : postMetrics.tiktokViews}{" "}
-                  <span className="text-[9px] text-slate-400 font-normal">/ 60k</span>
+                      ? `${(postMetrics.tiktokViews / 1000).toFixed(1)}k`
+                      : postMetrics.tiktokViews}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">
+                    / 60k
+                  </span>
                 </p>
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Tổng View</p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">
+                  Tổng View
+                </p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {isLoaded ? postMetrics.tiktokOver5k : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 5</span>
+                  {isLoaded ? postMetrics.tiktokOver5k : "—"}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">
+                    / 5
+                  </span>
                 </p>
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Video &gt; 5k</p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">
+                  Video &gt; 5k
+                </p>
               </div>
               <div className="px-1">
                 <p className="text-xs font-bold text-slate-900 font-mono">
-                  {isLoaded ? postMetrics.tiktokOver10k : "—"} <span className="text-[9px] text-slate-400 font-normal">/ 1</span>
+                  {isLoaded ? postMetrics.tiktokOver10k : "—"}{" "}
+                  <span className="text-[9px] text-slate-400 font-normal">
+                    / 1
+                  </span>
                 </p>
-                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Video &gt; 10k</p>
+                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">
+                  Video &gt; 10k
+                </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Toolbar & Filters (Month, Counter & Platform Selectors) */}
+        {/* Toolbar & Filters (Month, Branch, Counter & Platform Selectors) */}
         <div className="px-4 pb-2.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0 border-b border-slate-200/60">
           <div className="flex flex-wrap items-center gap-2">
             <AdminSelect
@@ -744,14 +831,41 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
               options={monthOptions}
               className="w-40 sm:w-44"
             />
+            <AdminSelect
+              value={filterBranch}
+              onChange={setFilterBranch}
+              options={branchOptions}
+              className="w-48 sm:w-56"
+            />
             <span className="h-9 px-3 rounded-md text-xs font-medium text-slate-600 bg-slate-100/90 border border-slate-200/70 flex items-center shadow-2xs">
-              {isLoaded ? postMetrics.total : "—"} / {isLoaded ? totalAllPostsCount : "—"} bài
+              {isLoaded ? postMetrics.total : "—"} /{" "}
+              {isLoaded ? totalAllPostsCount : "—"} bài
               {isLoaded && postMetrics.total !== displayedPosts.length && (
                 <span className="ml-1.5 text-[11px] text-slate-400 font-normal">
                   ({displayedPosts.length} nội dung)
                 </span>
               )}
             </span>
+            <button
+              type="button"
+              onClick={() => handleAddPostRow()}
+              className="h-9 px-3 rounded-md text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/80 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <svg
+                className="w-3.5 h-3.5 text-slate-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              <span>Thêm bài</span>
+            </button>
           </div>
 
           {/* Platform Filters */}
@@ -824,9 +938,14 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
               {daysInMonth.map((day) => {
                 const dateStr = `${filterMonth}-${day.dayStr}`;
-                const hasReport = posts.some(
-                  (p) => p.report_date === dateStr && p.title.trim(),
-                );
+                const hasReport = posts.some((p) => {
+                  if (p.report_date !== dateStr || !p.title.trim()) return false;
+                  if (filterBranch !== "all") {
+                    const postBranch = p.branch_id || HATICO_BRANCHES[0].id;
+                    if (postBranch !== filterBranch) return false;
+                  }
+                  return true;
+                });
 
                 return (
                   <button
@@ -876,7 +995,9 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
             ) : null}
 
             {errorMsg && (
-              <span className="text-xs font-semibold text-rose-700">{errorMsg}</span>
+              <span className="text-xs font-semibold text-rose-700">
+                {errorMsg}
+              </span>
             )}
           </div>
         )}
@@ -889,14 +1010,19 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                 <th className="px-3 py-2.5 w-10 text-center">
                   <input
                     type="checkbox"
-                    checked={posts.length > 0 && selectedPosts.size === displayedPosts.length}
+                    checked={
+                      posts.length > 0 &&
+                      selectedPosts.size === displayedPosts.length
+                    }
                     onChange={toggleSelectAllPosts}
                     className="w-3.5 h-3.5 rounded border-slate-300 text-primary focus:ring-primary/20 cursor-pointer"
                     aria-label="Chọn tất cả"
                   />
                 </th>
                 <th className="px-3 py-2.5 w-20 text-center">Nền tảng</th>
-                <th className="px-4 py-2.5 min-w-[14rem]">Tiêu đề / Nội dung bài đăng</th>
+                <th className="px-4 py-2.5 min-w-[14rem]">
+                  Tiêu đề / Nội dung bài đăng
+                </th>
                 <th className="px-4 py-2.5 min-w-[12rem]">Đường dẫn (Link)</th>
                 <th className="px-3 py-2.5 text-center w-28">Lượt xem</th>
                 <th className="px-3 py-2.5 text-center w-28">Ngày</th>
@@ -906,13 +1032,19 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
             <tbody className="divide-y divide-slate-100">
               {displayedPosts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400 italic font-medium">
-                    {isInitialLoaded ? "Chưa có bài đăng nào trong khoảng thời gian này" : "—"}
+                  <td
+                    colSpan={7}
+                    className="text-center py-12 text-slate-400 italic font-medium"
+                  >
+                    {isInitialLoaded
+                      ? "Chưa có bài đăng nào trong khoảng thời gian này"
+                      : "—"}
                   </td>
                 </tr>
               ) : (
                 displayedPosts.map((row) => {
-                  const isEditing = editingRowIds.has(row.rowId) || !row.title.trim();
+                  const isEditing =
+                    editingRowIds.has(row.rowId) || !row.title.trim();
                   const isSelected = selectedPosts.has(row.rowId);
 
                   return (
@@ -1015,18 +1147,41 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-center gap-1.5" title={row.platform}>
+                          <div
+                            className="flex items-center justify-center gap-1.5"
+                            title={row.platform}
+                          >
                             {row.platform.includes("Tiktok") && (
-                              <span className="text-[#fe2c55] inline-flex items-center justify-center" title="TikTok">{TikTokIcon}</span>
+                              <span
+                                className="text-[#fe2c55] inline-flex items-center justify-center"
+                                title="TikTok"
+                              >
+                                {TikTokIcon}
+                              </span>
                             )}
                             {row.platform.includes("Facebook") && (
-                              <span className="text-[#1877f2] inline-flex items-center justify-center" title="Facebook">{FacebookIcon}</span>
+                              <span
+                                className="text-[#1877f2] inline-flex items-center justify-center"
+                                title="Facebook"
+                              >
+                                {FacebookIcon}
+                              </span>
                             )}
                             {row.platform.includes("Youtube") && (
-                              <span className="text-[#ff0000] inline-flex items-center justify-center" title="YouTube">{YouTubeIcon}</span>
+                              <span
+                                className="text-[#ff0000] inline-flex items-center justify-center"
+                                title="YouTube"
+                              >
+                                {YouTubeIcon}
+                              </span>
                             )}
                             {row.platform.includes("Website") && (
-                              <span className="text-slate-700 inline-flex items-center justify-center" title="Website">{WebsiteIcon}</span>
+                              <span
+                                className="text-slate-700 inline-flex items-center justify-center"
+                                title="Website"
+                              >
+                                {WebsiteIcon}
+                              </span>
                             )}
                           </div>
                         )}
@@ -1043,7 +1198,9 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             type="text"
                             placeholder="Nhập tiêu đề video/bài đăng..."
                             value={row.title}
-                            onChange={(e) => updatePostRow(row.rowId, "title", e.target.value)}
+                            onChange={(e) =>
+                              updatePostRow(row.rowId, "title", e.target.value)
+                            }
                             onBlur={handleMarketingBlur}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
@@ -1062,8 +1219,18 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             <span className="font-semibold text-slate-900 text-[13px] leading-tight">
                               {row.title || "—"}
                             </span>
-                            <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            <svg
+                              className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.8}
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                              />
                             </svg>
                           </div>
                         )}
@@ -1076,7 +1243,9 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             type="text"
                             placeholder="https://..."
                             value={row.link}
-                            onChange={(e) => updatePostRow(row.rowId, "link", e.target.value)}
+                            onChange={(e) =>
+                              updatePostRow(row.rowId, "link", e.target.value)
+                            }
                             onBlur={handleMarketingBlur}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
@@ -1088,19 +1257,35 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                           />
                         ) : row.link ? (
                           <a
-                            href={row.link.startsWith("http") ? row.link : `https://${row.link}`}
+                            href={
+                              row.link.startsWith("http")
+                                ? row.link
+                                : `https://${row.link}`
+                            }
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px] truncate max-w-[220px]"
                             title={row.link}
                           >
                             <span className="truncate">{row.link}</span>
-                            <svg className="w-3 h-3 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            <svg
+                              className="w-3 h-3 shrink-0 text-slate-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
                             </svg>
                           </a>
                         ) : (
-                          <span className="text-slate-300 select-none font-normal">—</span>
+                          <span className="text-slate-300 select-none font-normal">
+                            —
+                          </span>
                         )}
                       </td>
 
@@ -1110,26 +1295,31 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                           <AdminSelect
                             compact
                             value={row.views}
-                            onChange={(val) => updatePostRow(row.rowId, "views", val, true)}
+                            onChange={(val) =>
+                              updatePostRow(row.rowId, "views", val, true)
+                            }
                             options={VIEW_OPTIONS}
                             className="w-full"
                           />
                         ) : row.views ? (
                           <span
                             className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[11px] font-medium whitespace-nowrap border ${
-                              row.views.includes("> 10k") || row.views.includes(">10k")
+                              row.views.includes("> 10k") ||
+                              row.views.includes(">10k")
                                 ? "bg-purple-50 text-purple-700 border-purple-200/70"
                                 : row.views.includes(">5k")
-                                ? "bg-amber-50 text-amber-700 border-amber-200/70"
-                                : row.views.includes(">2k")
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200/70"
-                                : "bg-slate-100 text-slate-700 border-slate-200/70"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200/70"
+                                  : row.views.includes(">2k")
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200/70"
+                                    : "bg-slate-100 text-slate-700 border-slate-200/70"
                             }`}
                           >
                             {row.views}
                           </span>
                         ) : (
-                          <span className="text-slate-300 select-none font-normal">—</span>
+                          <span className="text-slate-300 select-none font-normal">
+                            —
+                          </span>
                         )}
                       </td>
 
@@ -1146,7 +1336,9 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             }
                             className="w-full h-8 flex items-center justify-center gap-1.5 px-2 text-xs font-mono text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-50 cursor-pointer shadow-2xs"
                           >
-                            <span>{formatDateButtonLabel(row.report_date)}</span>
+                            <span>
+                              {formatDateButtonLabel(row.report_date)}
+                            </span>
                           </button>
                         ) : (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium text-slate-700 bg-slate-100/90 border border-slate-200/70 font-mono">
@@ -1166,8 +1358,18 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                               aria-label="Hoàn tất"
                               className="w-7 h-7 inline-flex items-center justify-center rounded border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all cursor-pointer shadow-2xs"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M5 13l4 4L19 7" />
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2.4}
+                                  d="M5 13l4 4L19 7"
+                                />
                               </svg>
                             </button>
                           ) : (
@@ -1178,8 +1380,18 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                               aria-label="Sửa"
                               className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer shadow-2xs active:scale-95"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                />
                               </svg>
                             </button>
                           )}
@@ -1194,8 +1406,18 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             aria-label="Xóa"
                             className="w-7 h-7 inline-flex items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:text-rose-700 hover:bg-rose-50/60 hover:border-rose-300 transition-all cursor-pointer shadow-2xs active:scale-95"
                           >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M6 18L18 6M6 6l12 12" />
+                            <svg
+                              className="w-3.5 h-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2.4}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
                             </svg>
                           </button>
                         </div>
@@ -1221,9 +1443,11 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
               profile.full_name
         }
         branchName={
-          profile.department?.branch
-            ? `${profile.department.name} - ${profile.department.branch.name}`
-            : profile.department?.name
+          filterBranch !== "all"
+            ? HATICO_BRANCHES.find((b) => b.id === filterBranch)?.name
+            : profile.department?.branch
+              ? `${profile.department.name} - ${profile.department.branch.name}`
+              : profile.department?.name
         }
         posts={displayedPosts.filter((p) => p.title.trim())}
         events={events.filter((e) => e.event_name.trim())}
