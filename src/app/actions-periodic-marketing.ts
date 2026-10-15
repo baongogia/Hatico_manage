@@ -36,7 +36,15 @@ export async function createOrGetPeriodicReportAction(
   reportType: PeriodicReportType,
   periodNumber: number,
   year: number,
-  branchId: string = "all"
+  branchId: string = "all",
+  extra?: {
+    startDate?: string;
+    endDate?: string;
+    periodSpan?: number;
+    startWeek?: number;
+    endWeek?: number;
+    periodLabel?: string;
+  }
 ) {
   try {
     const user = await getSessionUser();
@@ -48,7 +56,8 @@ export async function createOrGetPeriodicReportAction(
       year,
       branchId,
       user.full_name,
-      user.id
+      user.id,
+      extra
     );
     return { success: true, report };
   } catch (err: any) {

@@ -9,6 +9,7 @@ import {
 } from "./periodic-marketing-types";
 import {
   aggregatePeriodicReportData,
+  aggregatePeriodicReportDataByRange,
   getWeekDateRange,
   getMonthDateRange,
 } from "./periodic-marketing-aggregator";
@@ -191,7 +192,15 @@ function toDbRow(rep: MarketingPeriodicReport) {
     status: rep.status,
     closed_at: rep.closedAt || null,
     closed_by: rep.closedBy || null,
-    evaluation: rep.evaluation,
+    evaluation: {
+      ...rep.evaluation,
+      _meta: {
+        periodSpan: rep.periodSpan,
+        startWeek: rep.startWeek,
+        endWeek: rep.endWeek,
+        periodLabel: rep.periodLabel,
+      },
+    },
     action_plan: rep.actionPlan,
     snapshot: rep.data,
     history: rep.history,
@@ -207,6 +216,10 @@ function fromDbRow(row: Record<string, any>): MarketingPeriodicReport {
     reportType: row.report_type as PeriodicReportType,
     year: row.year,
     periodNumber: row.period_number,
+    periodSpan: row.evaluation?._meta?.periodSpan || row.period_span || 1,
+    startWeek: row.evaluation?._meta?.startWeek || row.start_week,
+    endWeek: row.evaluation?._meta?.endWeek || row.end_week,
+    periodLabel: row.evaluation?._meta?.periodLabel || row.period_label,
     branchId: row.branch_id || "all",
     branchName: row.branch_name || "Toàn hệ thống",
     startDate: row.start_date,
@@ -216,10 +229,10 @@ function fromDbRow(row: Record<string, any>): MarketingPeriodicReport {
     status: row.status as PeriodicReportStatus,
     closedAt: row.closed_at || undefined,
     closedBy: row.closed_by || undefined,
-    evaluation: row.evaluation || {
-      highlightedResults: "",
-      issuesAndDifficulties: "",
-      proposalsAndRecommendations: "",
+    evaluation: {
+      highlightedResults: row.evaluation?.highlightedResults || "",
+      issuesAndDifficulties: row.evaluation?.issuesAndDifficulties || "",
+      proposalsAndRecommendations: row.evaluation?.proposalsAndRecommendations || "",
     },
     actionPlan: Array.isArray(row.action_plan) ? row.action_plan : [],
     data: row.snapshot,
@@ -323,25 +336,62 @@ export async function createOrGetPeriodicReport(
   year: number,
   branchId: string = "all",
   creatorName: string = "Ngô Gia Bảo",
-  creatorId?: string
+  creatorId?: string,
+  extra?: {
+    startDate?: string;
+    endDate?: string;
+    periodSpan?: number;
+    startWeek?: number;
+    endWeek?: number;
+    periodLabel?: string;
+  }
 ): Promise<MarketingPeriodicReport> {
   // Check if official report already exists for this period & branch
   const existing = await getPeriodicReportByPeriod(reportType, periodNumber, year, branchId);
   if (existing) {
-    return existing;
+    if (extra?.startDate && extra?.endDate) {
+      if (existing.startDate === extra.startDate && existing.endDate === extra.endDate) {
+        return existing;
+      }
+    } else {
+      return existing;
+    }
   }
 
   // Calculate dates
-  const { startDate, endDate } =
-    reportType === "weekly"
-      ? getWeekDateRange(periodNumber, year)
-      : getMonthDateRange(periodNumber, year);
+  let startDate = "";
+  let endDate = "";
+  if (extra?.startDate && extra?.endDate) {
+    startDate = extra.startDate;
+    endDate = extra.endDate;
+  } else if (reportType === "weekly") {
+    const range = getWeekDateRange(periodNumber, year);
+    startDate = range.startDate;
+    endDate = range.endDate;
+  } else {
+    const range = getMonthDateRange(periodNumber, year);
+    startDate = range.startDate;
+    endDate = range.endDate;
+  }
 
   // Auto-aggregate live numbers from source marketing modules
-  const aggregatedData = await aggregatePeriodicReportData(reportType, periodNumber, year, branchId);
+  const aggregatedData = await aggregatePeriodicReportDataByRange(startDate, endDate, branchId);
 
   const branchMeta = HATICO_BRANCHES.find((b) => b.id === branchId);
   const branchName = branchId === "all" ? "Toàn hệ thống" : branchMeta ? branchMeta.name : "Toàn hệ thống";
+
+  let periodLabel = extra?.periodLabel;
+  if (!periodLabel) {
+    if (extra?.periodSpan && extra.periodSpan > 1) {
+      periodLabel = `Tuần ${extra.startWeek ?? periodNumber} – ${extra.endWeek ?? periodNumber} / ${year} (${extra.periodSpan} tuần)`;
+    } else if (reportType === "weekly") {
+      periodLabel = `Tuần ${periodNumber} / ${year}`;
+    } else if (reportType === "monthly") {
+      periodLabel = `Tháng ${periodNumber} / ${year}`;
+    } else {
+      periodLabel = `Báo cáo ${startDate} → ${endDate}`;
+    }
+  }
 
   const now = new Date().toISOString();
   const newReport: MarketingPeriodicReport = {
@@ -349,6 +399,10 @@ export async function createOrGetPeriodicReport(
     reportType,
     year,
     periodNumber,
+    periodSpan: extra?.periodSpan || 1,
+    startWeek: extra?.startWeek,
+    endWeek: extra?.endWeek,
+    periodLabel,
     branchId,
     branchName,
     startDate,
@@ -387,7 +441,7 @@ export async function createOrGetPeriodicReport(
         timestamp: now,
         action: "created",
         userName: creatorName,
-        notes: `Tạo mới bản nháp ${reportType === "weekly" ? `Tuần ${periodNumber}` : `Tháng ${periodNumber}`} / ${year}`,
+        notes: `Tạo mới ${periodLabel}`,
       },
     ],
   };
@@ -470,12 +524,14 @@ export async function refreshPeriodicReportData(
   }
 
   const now = new Date().toISOString();
-  const refreshedData = await aggregatePeriodicReportData(
-    target.reportType,
-    target.periodNumber,
-    target.year,
-    target.branchId
-  );
+  const refreshedData = target.startDate && target.endDate
+    ? await aggregatePeriodicReportDataByRange(target.startDate, target.endDate, target.branchId)
+    : await aggregatePeriodicReportData(
+        target.reportType,
+        target.periodNumber,
+        target.year,
+        target.branchId
+      );
 
   const updated: MarketingPeriodicReport = {
     ...target,
@@ -533,12 +589,14 @@ export async function closePeriodicReport(
   const now = new Date().toISOString();
 
   // Snapshot live data at the moment of closing
-  const snapshotData = await aggregatePeriodicReportData(
-    target.reportType,
-    target.periodNumber,
-    target.year,
-    target.branchId
-  );
+  const snapshotData = target.startDate && target.endDate
+    ? await aggregatePeriodicReportDataByRange(target.startDate, target.endDate, target.branchId)
+    : await aggregatePeriodicReportData(
+        target.reportType,
+        target.periodNumber,
+        target.year,
+        target.branchId
+      );
 
   const updated: MarketingPeriodicReport = {
     ...target,

@@ -34,6 +34,16 @@ export function getWeekDateRange(weekNumber: number, year: number): { startDate:
   return { startDate: formatISO(start), endDate: formatISO(end) };
 }
 
+export function getMultiWeekDateRange(
+  startWeek: number,
+  endWeek: number,
+  year: number
+): { startDate: string; endDate: string } {
+  const { startDate } = getWeekDateRange(startWeek, year);
+  const { endDate } = getWeekDateRange(endWeek, year);
+  return { startDate, endDate };
+}
+
 export function getMonthDateRange(month: number, year: number): { startDate: string; endDate: string } {
   const start = new Date(Date.UTC(year, month - 1, 1));
   const end = new Date(Date.UTC(year, month, 0));
@@ -359,32 +369,28 @@ async function computePeriodMetrics(
   };
 }
 
-export async function aggregatePeriodicReportData(
-  reportType: PeriodicReportType,
-  periodNumber: number,
-  year: number,
+export async function aggregatePeriodicReportDataByRange(
+  startDate: string,
+  endDate: string,
   branchId: string = "all"
 ): Promise<PeriodicReportDataSnapshot> {
-  // Current Period Bounds
-  const { startDate, endDate } =
-    reportType === "weekly"
-      ? getWeekDateRange(periodNumber, year)
-      : getMonthDateRange(periodNumber, year);
+  const formatISO = (d: Date) => d.toISOString().split("T")[0];
 
-  // Previous Period Bounds
-  const { prevPeriodNumber, prevYear } = getPreviousPeriod(reportType, periodNumber, year);
-  const { startDate: prevStartDate, endDate: prevEndDate } =
-    reportType === "weekly"
-      ? getWeekDateRange(prevPeriodNumber, prevYear)
-      : getMonthDateRange(prevPeriodNumber, prevYear);
+  const startMs = new Date(`${startDate}T00:00:00Z`).getTime();
+  const endMs = new Date(`${endDate}T00:00:00Z`).getTime();
+  const diffDays = Math.max(1, Math.round((endMs - startMs) / 86400000) + 1);
 
-  // Aggregate current and previous in parallel
+  // Exact previous period of identical day duration
+  const prevEndMs = startMs - 86400000;
+  const prevStartMs = prevEndMs - (diffDays - 1) * 86400000;
+  const prevStartDate = formatISO(new Date(prevStartMs));
+  const prevEndDate = formatISO(new Date(prevEndMs));
+
   const [currentMetrics, prevMetrics] = await Promise.all([
     computePeriodMetrics(startDate, endDate, branchId),
     computePeriodMetrics(prevStartDate, prevEndDate, branchId),
   ]);
 
-  // Compute comparisons
   const kpiKeys: (keyof PeriodicReportKPIs)[] = [
     "totalContents",
     "totalViews",
@@ -424,4 +430,18 @@ export async function aggregatePeriodicReportData(
     branchResults: currentMetrics.branchResults,
     totalSystemBranch: currentMetrics.totalSystemBranch,
   };
+}
+
+export async function aggregatePeriodicReportData(
+  reportType: PeriodicReportType,
+  periodNumber: number,
+  year: number,
+  branchId: string = "all"
+): Promise<PeriodicReportDataSnapshot> {
+  const { startDate, endDate } =
+    reportType === "weekly"
+      ? getWeekDateRange(periodNumber, year)
+      : getMonthDateRange(periodNumber, year);
+
+  return aggregatePeriodicReportDataByRange(startDate, endDate, branchId);
 }

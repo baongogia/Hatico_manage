@@ -1,4 +1,4 @@
-export type PeriodicReportType = "weekly" | "monthly";
+export type PeriodicReportType = "weekly" | "monthly" | "custom";
 export type PeriodicReportStatus = "draft" | "closed";
 
 export interface PeriodicEvaluation {
@@ -149,9 +149,13 @@ export interface ReportHistoryItem {
 
 export interface MarketingPeriodicReport {
   id: string;
-  reportType: PeriodicReportType; // "weekly" | "monthly"
+  reportType: PeriodicReportType; // "weekly" | "monthly" | "custom"
   year: number;
   periodNumber: number;          // Week 1-53 hoặc Month 1-12
+  periodSpan?: number;           // Số tuần (1, 2, 3...) hoặc số ngày
+  startWeek?: number;            // Tuần bắt đầu (cho kỳ nhiều tuần)
+  endWeek?: number;              // Tuần kết thúc (cho kỳ nhiều tuần)
+  periodLabel?: string;          // Tên hiển thị (vd: Tuần 41 - 42 / 2026 (2 tuần))
   branchId: string;              // "all" hoặc branch UUID
   branchName: string;            // "Toàn hệ thống" hoặc tên chi nhánh
   startDate: string;             // YYYY-MM-DD

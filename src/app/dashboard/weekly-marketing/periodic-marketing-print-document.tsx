@@ -62,9 +62,11 @@ export function PeriodicMarketingPrintDocument({ report }: PeriodicMarketingPrin
   const kpis = d?.kpis;
 
   const isWeekly = report.reportType === "weekly";
-  const titleText = isWeekly
-    ? `BÁO CÁO MARKETING TUẦN ${report.periodNumber} / ${report.year}`
-    : `BÁO CÁO MARKETING THÁNG ${report.periodNumber} / ${report.year}`;
+  const titleText = report.periodLabel
+    ? `BÁO CÁO MARKETING ${report.periodLabel.toUpperCase()}`
+    : isWeekly
+      ? `BÁO CÁO MARKETING TUẦN ${report.periodNumber} / ${report.year}`
+      : `BÁO CÁO MARKETING THÁNG ${report.periodNumber} / ${report.year}`;
 
   return (
     <div className="periodic-print-root">

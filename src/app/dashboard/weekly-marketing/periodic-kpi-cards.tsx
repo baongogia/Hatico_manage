@@ -4,11 +4,18 @@ import { PeriodicReportKPIs, KPICardComparison } from "@/lib/periodic-marketing-
 interface PeriodicKpiCardsProps {
   kpis: PeriodicReportKPIs;
   comparison: Record<keyof PeriodicReportKPIs, KPICardComparison>;
-  reportType: "weekly" | "monthly";
+  reportType?: "weekly" | "monthly" | "custom";
+  comparisonLabel?: string;
 }
 
-export function PeriodicKpiCards({ kpis, comparison, reportType }: PeriodicKpiCardsProps) {
-  const compLabel = reportType === "weekly" ? "so với tuần trước" : "so với tháng trước";
+export function PeriodicKpiCards({ kpis, comparison, reportType = "weekly", comparisonLabel }: PeriodicKpiCardsProps) {
+  const compLabel =
+    comparisonLabel ||
+    (reportType === "weekly"
+      ? "so với tuần trước"
+      : reportType === "monthly"
+        ? "so với tháng trước"
+        : "so với kỳ trước");
 
   const formatKpiValue = (val: number | null | undefined, isCurrency = false) => {
     if (val === null || val === undefined) return "—";

@@ -32,7 +32,10 @@ import { PeriodicCampaignsSection } from "./periodic-campaigns-section";
 import { PeriodicBranchTable } from "./periodic-branch-table";
 import { PeriodicEvaluationSection } from "./periodic-evaluation-section";
 import { PeriodicActionPlanSection } from "./periodic-action-plan-section";
-import { PeriodicCreateModal } from "./periodic-create-modal";
+import {
+  PeriodicCreateModal,
+  CreatePeriodicReportParams,
+} from "./periodic-create-modal";
 import { PeriodicMarketingPrintDocument } from "./periodic-marketing-print-document";
 
 interface WeeklyMarketingPanelProps {
@@ -47,6 +50,7 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
 
   const [reports, setReports] = useState<MarketingPeriodicReport[]>([]);
   const [selectedReportId, setSelectedReportId] = useState<string>("");
+  const [spanFilter, setSpanFilter] = useState<string>("all");
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -119,10 +123,22 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
     loadReports(reportType, selectedYear, selectedBranchId);
   }, [reportType, selectedYear, selectedBranchId]);
 
+  // Filtered reports by span filter (for weekly: 1 week, 2 weeks, 3 weeks)
+  const displayedReports = useMemo(() => {
+    return reports.filter((r) => {
+      if (reportType === "weekly" && spanFilter !== "all") {
+        if (spanFilter === "1") return !r.periodSpan || r.periodSpan === 1;
+        if (spanFilter === "2") return r.periodSpan === 2;
+        if (spanFilter === "3") return r.periodSpan === 3;
+      }
+      return true;
+    });
+  }, [reports, reportType, spanFilter]);
+
   // Selected report
   const selectedReport = useMemo(() => {
-    return reports.find((r) => r.id === selectedReportId) || reports[0] || null;
-  }, [reports, selectedReportId]);
+    return displayedReports.find((r) => r.id === selectedReportId) || displayedReports[0] || null;
+  }, [displayedReports, selectedReportId]);
 
   // Sync edit state when selected report changes
   useEffect(() => {
@@ -147,14 +163,29 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
   };
 
   // Create new period report handler
-  const handleCreateNew = async (periodNum: number, yr: number, brId: string) => {
-    const res = await createOrGetPeriodicReportAction(reportType, periodNum, yr, brId);
+  const handleCreateNew = async (params: CreatePeriodicReportParams) => {
+    const res = await createOrGetPeriodicReportAction(
+      params.reportType,
+      params.periodNumber,
+      params.year,
+      params.branchId,
+      {
+        startDate: params.startDate,
+        endDate: params.endDate,
+        periodSpan: params.periodSpan,
+        startWeek: params.startWeek,
+        endWeek: params.endWeek,
+        periodLabel: params.periodLabel,
+      }
+    );
     if (res.success && res.report) {
       showToast(
-        `Đã tạo báo cáo ${reportType === "weekly" ? `Tuần ${periodNum}` : `Tháng ${periodNum}`} / ${yr} thành công!`
+        `Đã tạo ${res.report.periodLabel || "báo cáo"} thành công!`
       );
-      // Reload reports and select the newly created report
-      loadReports();
+      if (reportType !== params.reportType) {
+        setReportType(params.reportType);
+      }
+      loadReports(params.reportType, params.year, selectedBranchId);
       setSelectedReportId(res.report.id);
     } else {
       throw new Error(res.error || "Không thể tạo báo cáo");
@@ -288,30 +319,49 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
       <div className="flex flex-1 min-h-0 flex-col sm:flex-row overflow-hidden print:h-auto print:overflow-visible">
         {/* ================= LEFT HISTORY SIDEBAR ================= */}
         <aside className="w-full sm:w-64 lg:w-72 shrink-0 flex flex-col bg-white border-r border-slate-200/90 overflow-hidden no-print">
-          {/* 1. Mode Switcher: Tuần / Tháng */}
+          {/* 1. Mode Switcher: Tuần (1-3 tuần) / Tháng / Tùy chọn ngày */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/70 shrink-0">
-            <div className="grid grid-cols-2 gap-1 p-0.5 bg-slate-200/70 rounded-[4px]">
+            <div className="grid grid-cols-3 gap-1 p-0.5 bg-slate-200/70 rounded-md">
               <button
                 type="button"
-                onClick={() => setReportType("weekly")}
-                className={`py-1.5 text-xs font-bold rounded-[4px] transition-all cursor-pointer ${
+                onClick={() => {
+                  setReportType("weekly");
+                  setSpanFilter("all");
+                }}
+                className={`py-1.5 text-xs font-bold rounded transition-all cursor-pointer text-center ${
                   reportType === "weekly"
                     ? "bg-white text-primary shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
+                title="Báo cáo tuần (1 tuần, 2 tuần, 3 tuần)"
               >
-                Báo cáo tuần
+                Theo tuần
               </button>
               <button
                 type="button"
                 onClick={() => setReportType("monthly")}
-                className={`py-1.5 text-xs font-bold rounded-[4px] transition-all cursor-pointer ${
+                className={`py-1.5 text-xs font-bold rounded transition-all cursor-pointer text-center ${
                   reportType === "monthly"
                     ? "bg-white text-primary shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Báo cáo tháng
+                Theo tháng
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setReportType("custom");
+                  setSpanFilter("all");
+                }}
+                className={`py-1.5 text-xs font-bold rounded transition-all cursor-pointer text-center ${
+                  reportType === "custom"
+                    ? "bg-white text-primary shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Tùy chọn khoảng ngày linh hoạt"
+              >
+                Tùy chọn
               </button>
             </div>
           </div>
@@ -352,28 +402,58 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
             </div>
           </div>
 
-          {/* 3. Action bar: Title & + New */}
-          <div className="p-2.5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/40">
-            <h3 className="text-xs font-bold text-slate-800">
-              Lịch sử {reportType === "weekly" ? "tuần" : "tháng"} ({reports.length})
-            </h3>
-            <button
-              type="button"
-              onClick={() => setShowCreateModal(true)}
-              className="text-xs font-bold text-primary hover:text-primary-hover px-2.5 py-1 rounded-[4px] hover:bg-primary/10 transition-colors cursor-pointer border border-primary/20"
-            >
-              + {reportType === "weekly" ? "Tuần mới" : "Tháng mới"}
-            </button>
+          {/* 3. Action bar: Title, Filter chips & + New */}
+          <div className="p-2.5 border-b border-slate-100 shrink-0 bg-slate-50/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-800">
+                Lịch sử {reportType === "weekly" ? "tuần" : reportType === "monthly" ? "tháng" : "tùy chọn"} ({displayedReports.length})
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(true)}
+                className="text-xs font-bold text-primary hover:text-primary-hover px-2.5 py-1 rounded-[4px] hover:bg-primary/10 transition-colors cursor-pointer border border-primary/20 flex items-center gap-1"
+              >
+                <span>+</span>
+                <span>{reportType === "weekly" ? "Tạo kỳ mới" : reportType === "monthly" ? "Tháng mới" : "Kỳ mới"}</span>
+              </button>
+            </div>
+
+            {/* Quick filter for duration (1 tuần, 2 tuần, 3 tuần) when in weekly mode */}
+            {reportType === "weekly" && reports.length > 0 && (
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pt-0.5">
+                {[
+                  { id: "all", label: "Tất cả" },
+                  { id: "1", label: "1 tuần" },
+                  { id: "2", label: "2 tuần" },
+                  { id: "3", label: "3 tuần" },
+                ].map((chip) => (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    onClick={() => setSpanFilter(chip.id)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer shrink-0 ${
+                      spanFilter === chip.id
+                        ? "bg-primary text-white"
+                        : "bg-slate-200/80 text-slate-700 hover:bg-slate-300"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* 4. Report List */}
           <div className="p-2 gap-1.5 flex flex-col flex-1 overflow-y-auto no-scrollbar">
-            {reports.length === 0 ? (
+            {displayedReports.length === 0 ? (
               <div className="p-4 text-center text-xs text-slate-400 italic">
-                Chưa có báo cáo nào cho năm {selectedYear}. Bấm nút &quot;+&quot; ở trên để tạo báo cáo.
+                {reports.length === 0
+                  ? `Chưa có báo cáo nào cho năm ${selectedYear}. Bấm nút "+" ở trên để tạo báo cáo.`
+                  : "Không có báo cáo nào khớp với bộ lọc."}
               </div>
             ) : (
-              reports.map((rep) => {
+              displayedReports.map((rep) => {
                 const isSelected = selectedReport?.id === rep.id;
                 return (
                   <div
@@ -389,11 +469,25 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1 mb-1">
-                      <span className="text-xs font-bold text-slate-900">
-                        {rep.reportType === "weekly"
-                          ? `Tuần ${rep.periodNumber} / ${rep.year}`
-                          : `Tháng ${rep.periodNumber} / ${rep.year}`}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs font-bold text-slate-900 truncate">
+                          {rep.periodLabel ||
+                            (rep.reportType === "weekly"
+                              ? `Tuần ${rep.periodNumber} / ${rep.year}`
+                              : `Tháng ${rep.periodNumber} / ${rep.year}`)}
+                        </span>
+                        {rep.periodSpan && rep.periodSpan > 1 && (
+                          <span
+                            className={`px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 ${
+                              rep.periodSpan === 2
+                                ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                : "bg-purple-50 text-purple-700 border border-purple-200"
+                            }`}
+                          >
+                            {rep.periodSpan} tuần
+                          </span>
+                        )}
+                      </div>
                       {getStatusBadge(rep.status)}
                     </div>
 
@@ -444,8 +538,10 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight uppercase">
-                      BÁO CÁO MARKETING {selectedReport.reportType === "weekly" ? "TUẦN" : "THÁNG"}{" "}
-                      {selectedReport.periodNumber} / {selectedReport.year}
+                      BÁO CÁO MARKETING{" "}
+                      {selectedReport.periodLabel
+                        ? selectedReport.periodLabel.toUpperCase()
+                        : `${selectedReport.reportType === "weekly" ? "TUẦN" : "THÁNG"} ${selectedReport.periodNumber} / ${selectedReport.year}`}
                     </h1>
                     {getStatusBadge(selectedReport.status)}
                   </div>
@@ -453,6 +549,10 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
                   <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-slate-800">
                       {formatShortDate(selectedReport.startDate)} – {formatShortDate(selectedReport.endDate)}
+                      <span className="ml-1 text-slate-500 font-normal">
+                        ({Math.max(1, Math.round((new Date(selectedReport.endDate).getTime() - new Date(selectedReport.startDate).getTime()) / 86400000) + 1)} ngày
+                        {selectedReport.periodSpan && selectedReport.periodSpan > 1 ? ` · ${selectedReport.periodSpan} tuần` : ""})
+                      </span>
                     </span>
                     <span>·</span>
                     <span className="text-slate-700">{selectedReport.branchName}</span>
@@ -614,6 +714,15 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
                     kpis={selectedReport.data?.kpis}
                     comparison={selectedReport.data?.kpiComparison}
                     reportType={selectedReport.reportType}
+                    comparisonLabel={
+                      selectedReport.periodSpan && selectedReport.periodSpan > 1
+                        ? `so với ${selectedReport.periodSpan} tuần trước`
+                        : selectedReport.reportType === "weekly"
+                          ? "so với tuần trước"
+                          : selectedReport.reportType === "monthly"
+                            ? "so với tháng trước"
+                            : "so với kỳ trước"
+                    }
                   />
                 </section>
 
