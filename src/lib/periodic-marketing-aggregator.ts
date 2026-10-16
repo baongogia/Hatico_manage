@@ -207,27 +207,48 @@ async function computePeriodMetrics(
     orders: systemLeadStats.closed,
   };
 
-  // Top contents sorted by views
+  // Full contents grouped by branch (theo thứ tự chi nhánh Hatico), then sorted by publish_date desc
+  const branchOrderMap = new Map<string, number>(HATICO_BRANCHES.map((b, idx) => [b.id as string, idx]));
   const topContents: TopContentItem[] = contents
-    .map((c) => ({
-      id: c.id,
-      title: c.title,
-      platform:
-        c.platform === "facebook"
-          ? "Facebook"
-          : c.platform === "tiktok"
-          ? "TikTok"
-          : c.platform === "youtube"
-          ? "YouTube"
-          : "Website",
-      platformKey: c.platform,
-      publishDate: c.publish_date,
-      views: c.views || 0,
-      interactions: c.interactions || 0,
-      link: c.link,
-    }))
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 5);
+    .map((c) => {
+      const bObj = HATICO_BRANCHES.find((b) => b.id === c.branch_id);
+      return {
+        id: c.id,
+        title: c.title,
+        platform:
+          c.platform === "facebook"
+            ? "Facebook"
+            : c.platform === "tiktok"
+            ? "TikTok"
+            : c.platform === "youtube"
+            ? "YouTube"
+            : "Website",
+        platformKey: c.platform,
+        publishDate: c.publish_date,
+        views: c.views || 0,
+        interactions: c.interactions || 0,
+        link: c.link,
+        contentType: c.content_type,
+        authorName: c.author_name,
+        branchId: c.branch_id || HATICO_BRANCHES[0].id,
+        branchName: bObj?.name || HATICO_BRANCHES[0].name,
+        leads: c.leads_count || 0,
+        orders: c.orders_count || 0,
+      };
+    })
+    .sort((a, b) => {
+      // 1. Gom nhóm theo từng chi nhánh trước (không phân chia ngẫu nhiên)
+      const orderA = branchOrderMap.get(a.branchId || "") ?? 999;
+      const orderB = branchOrderMap.get(b.branchId || "") ?? 999;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      // 2. Trong cùng 1 chi nhánh: sắp xếp bài mới nhất trước, sau đó theo lượt xem
+      if (b.publishDate !== a.publishDate) {
+        return b.publishDate.localeCompare(a.publishDate);
+      }
+      return b.views - a.views;
+    });
 
   // 2. CHIẾN DỊCH QUẢNG CÁO (Facebook Ads, TikTok Ads)
   const fbCampaigns = campaigns.filter((c) => c.platform === "facebook_ads");
@@ -333,10 +354,12 @@ async function computePeriodMetrics(
     };
   });
 
+  const totalBranchContentCount = branchResults.reduce((acc, b) => acc + b.contentCount, 0);
+
   const totalSystemBranch: BranchResultRow = {
     branchId: "all",
     branchName: "Toàn hệ thống",
-    contentCount: totalChannelContentCount,
+    contentCount: totalBranchContentCount,
     leads: systemLeadStats.total,
     consulted: systemLeadStats.consulted,
     converted: systemLeadStats.converted,
@@ -346,7 +369,7 @@ async function computePeriodMetrics(
 
   // 4. TỔNG HỢP 8 CHỈ SỐ KPI CHÍNH
   const kpis: PeriodicReportKPIs = {
-    totalContents: totalChannelContentCount,
+    totalContents: totalBranchContentCount,
     totalViews: channelTotals.views,
     totalInteractions: channelTotals.interactions,
     totalLeads: systemLeadStats.total,

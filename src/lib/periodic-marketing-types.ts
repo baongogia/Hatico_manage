@@ -54,6 +54,12 @@ export interface TopContentItem {
   views: number;
   interactions: number;
   link?: string;
+  contentType?: string;
+  authorName?: string;
+  branchId?: string;
+  branchName?: string;
+  leads?: number;
+  orders?: number;
 }
 
 export interface AdCampaignDetailRow {

@@ -4,11 +4,19 @@ import { BranchResultRow } from "@/lib/periodic-marketing-types";
 interface PeriodicBranchTableProps {
   branchResults: BranchResultRow[];
   totalSystem: BranchResultRow;
+  isEditing?: boolean;
+  onUpdateBranch?: (
+    branchId: string,
+    field: keyof BranchResultRow,
+    value: number
+  ) => void;
 }
 
 export function PeriodicBranchTable({
   branchResults,
   totalSystem,
+  isEditing = false,
+  onUpdateBranch,
 }: PeriodicBranchTableProps) {
   const formatCost = (val: number | null | undefined) =>
     val === null || val === undefined ? "—" : `${val.toLocaleString("vi-VN")} ₫`;
@@ -29,54 +37,127 @@ export function PeriodicBranchTable({
             <th className="py-2.5 px-3 text-right">Chi phí Ads</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100 text-slate-700">
+        <tbody className="divide-y divide-slate-100 text-slate-700 font-mono">
           {branchResults.map((b) => (
             <tr key={b.branchId} className="hover:bg-slate-50/50">
-              <td className="py-2.5 px-3 font-semibold text-slate-900">
+              <td className="py-2.5 px-3 font-sans font-medium text-slate-900">
                 {b.branchName}
               </td>
-              <td className="py-2.5 px-3 text-right font-medium">
-                {formatNum(b.contentCount)}
+              <td className="py-2.5 px-3 text-right">
+                {isEditing ? (
+                  <input
+                    type="number"
+                    min="0"
+                    value={b.contentCount}
+                    onChange={(e) =>
+                      onUpdateBranch?.(b.branchId, "contentCount", Math.max(0, parseInt(e.target.value) || 0))
+                    }
+                    className="w-16 text-right text-xs p-1 border border-slate-300 rounded bg-white font-mono"
+                  />
+                ) : (
+                  formatNum(b.contentCount)
+                )}
               </td>
-              <td className="py-2.5 px-3 text-right font-bold text-amber-700">
-                {formatNum(b.leads)}
+              <td className="py-2.5 px-3 text-right font-medium text-slate-900">
+                {isEditing ? (
+                  <input
+                    type="number"
+                    min="0"
+                    value={b.leads}
+                    onChange={(e) =>
+                      onUpdateBranch?.(b.branchId, "leads", Math.max(0, parseInt(e.target.value) || 0))
+                    }
+                    className="w-16 text-right text-xs p-1 border border-slate-300 rounded bg-white font-mono font-bold"
+                  />
+                ) : (
+                  formatNum(b.leads)
+                )}
               </td>
-              <td className="py-2.5 px-3 text-right text-sky-700">
-                {formatNum(b.consulted)}
+              <td className="py-2.5 px-3 text-right text-slate-700">
+                {isEditing ? (
+                  <input
+                    type="number"
+                    min="0"
+                    value={b.consulted}
+                    onChange={(e) =>
+                      onUpdateBranch?.(b.branchId, "consulted", Math.max(0, parseInt(e.target.value) || 0))
+                    }
+                    className="w-16 text-right text-xs p-1 border border-slate-300 rounded bg-white font-mono"
+                  />
+                ) : (
+                  formatNum(b.consulted)
+                )}
               </td>
-              <td className="py-2.5 px-3 text-right text-teal-700">
-                {formatNum(b.converted)}
+              <td className="py-2.5 px-3 text-right text-slate-700">
+                {isEditing ? (
+                  <input
+                    type="number"
+                    min="0"
+                    value={b.converted}
+                    onChange={(e) =>
+                      onUpdateBranch?.(b.branchId, "converted", Math.max(0, parseInt(e.target.value) || 0))
+                    }
+                    className="w-16 text-right text-xs p-1 border border-slate-300 rounded bg-white font-mono"
+                  />
+                ) : (
+                  formatNum(b.converted)
+                )}
               </td>
-              <td className="py-2.5 px-3 text-right font-bold text-emerald-700">
-                {formatNum(b.orders)}
+              <td className="py-2.5 px-3 text-right font-bold text-slate-900">
+                {isEditing ? (
+                  <input
+                    type="number"
+                    min="0"
+                    value={b.orders}
+                    onChange={(e) =>
+                      onUpdateBranch?.(b.branchId, "orders", Math.max(0, parseInt(e.target.value) || 0))
+                    }
+                    className="w-16 text-right text-xs p-1 border border-slate-300 rounded bg-white font-mono font-bold"
+                  />
+                ) : (
+                  formatNum(b.orders)
+                )}
               </td>
-              <td className="py-2.5 px-3 text-right font-medium text-slate-800">
-                {formatCost(b.adSpend)}
+              <td className="py-2.5 px-3 text-right font-medium text-slate-900">
+                {isEditing ? (
+                  <input
+                    type="number"
+                    min="0"
+                    step="10000"
+                    value={b.adSpend}
+                    onChange={(e) =>
+                      onUpdateBranch?.(b.branchId, "adSpend", Math.max(0, parseInt(e.target.value) || 0))
+                    }
+                    className="w-24 text-right text-xs p-1 border border-slate-300 rounded bg-white font-mono"
+                  />
+                ) : (
+                  formatCost(b.adSpend)
+                )}
               </td>
             </tr>
           ))}
 
           {/* Row Tổng Toàn Hệ Thống */}
-          <tr className="bg-slate-50/90 font-bold border-t-2 border-slate-200 text-slate-900">
-            <td className="py-2.5 px-3 font-extrabold uppercase text-[11px] text-slate-800">
+          <tr className="bg-slate-100/80 font-bold border-t-2 border-slate-300 text-slate-900">
+            <td className="py-2.5 px-3 font-sans font-extrabold uppercase text-[11px] text-slate-900">
               Tổng toàn hệ thống
             </td>
             <td className="py-2.5 px-3 text-right font-bold">
               {formatNum(totalSystem.contentCount)}
             </td>
-            <td className="py-2.5 px-3 text-right font-extrabold text-amber-800">
+            <td className="py-2.5 px-3 text-right font-extrabold text-slate-900">
               {formatNum(totalSystem.leads)}
             </td>
-            <td className="py-2.5 px-3 text-right font-bold text-sky-800">
+            <td className="py-2.5 px-3 text-right font-bold text-slate-900">
               {formatNum(totalSystem.consulted)}
             </td>
-            <td className="py-2.5 px-3 text-right font-bold text-teal-800">
+            <td className="py-2.5 px-3 text-right font-bold text-slate-900">
               {formatNum(totalSystem.converted)}
             </td>
-            <td className="py-2.5 px-3 text-right font-black text-emerald-800">
+            <td className="py-2.5 px-3 text-right font-black text-slate-900">
               {formatNum(totalSystem.orders)}
             </td>
-            <td className="py-2.5 px-3 text-right font-extrabold text-rose-800">
+            <td className="py-2.5 px-3 text-right font-extrabold text-slate-900">
               {formatCost(totalSystem.adSpend)}
             </td>
           </tr>

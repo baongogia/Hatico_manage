@@ -58,10 +58,10 @@ export function WeeklyWebsiteCard({ metrics }: WeeklyWebsiteCardProps) {
 
   // Check if there are deeper metrics to expand
   const actionItems = [
-    { label: "📝 Form liên hệ", value: metrics.contactFormSubmissions },
-    { label: "📞 Bấm gọi Hotline", value: metrics.phoneCallClicks },
-    { label: "💬 Bấm chat Zalo", value: metrics.zaloClicks },
-    { label: "📑 Yêu cầu báo giá", value: metrics.quoteRequests },
+    { label: "Form liên hệ", value: metrics.contactFormSubmissions },
+    { label: "Bấm gọi Hotline", value: metrics.phoneCallClicks },
+    { label: "Bấm chat Zalo", value: metrics.zaloClicks },
+    { label: "Yêu cầu báo giá", value: metrics.quoteRequests },
   ].filter((item) => hasValue(item.value));
 
   const hasPages = metrics.topLandingPages && metrics.topLandingPages.length > 0;

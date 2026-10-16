@@ -148,19 +148,19 @@ export function WeeklyFacebookCard({ metrics }: WeeklyFacebookCardProps) {
           {hasInteractions && (
             <div className="flex flex-wrap items-center gap-3 text-slate-600 bg-slate-50/60 p-2.5 rounded-xl">
               {hasValue(metrics.likes) && (
-                <div>👍 Thích: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.likes)}</strong></div>
+                <div>Thích: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.likes)}</strong></div>
               )}
               {hasValue(metrics.comments) && (
-                <div>💬 Bình luận: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.comments)}</strong></div>
+                <div>Bình luận: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.comments)}</strong></div>
               )}
               {hasValue(metrics.shares) && (
-                <div>↗️ Chia sẻ: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.shares)}</strong></div>
+                <div>Chia sẻ: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.shares)}</strong></div>
               )}
               {hasValue(metrics.messagesStarted) && (
-                <div>✉️ Tin nhắn mới: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.messagesStarted)}</strong></div>
+                <div>Tin nhắn mới: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.messagesStarted)}</strong></div>
               )}
               {hasValue(metrics.linkClicks) && (
-                <div>🔗 Click link: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.linkClicks)}</strong></div>
+                <div>Click link: <strong className="text-slate-900 font-semibold">{formatNumber(metrics.linkClicks)}</strong></div>
               )}
             </div>
           )}

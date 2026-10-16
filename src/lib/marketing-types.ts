@@ -19,11 +19,11 @@ export type LeadStatus =
 export type CampaignStatus = "preparing" | "running" | "paused" | "completed";
 
 export const HATICO_BRANCHES = [
-  { id: "e0462eae-7a2a-4e4d-a03b-ed9423871289", name: "Hatico Việt Nam – Tổng kho", shortCode: "HN" },
-  { id: "a8a828f2-6338-45a5-afa8-2a4afa9ac4ae", name: "Hatico Tây Nguyên", shortCode: "TN" },
-  { id: "186dcf21-63cd-4c17-a0d2-17c1eb67963b", name: "Hatico Đồng Nai", shortCode: "DN" },
-  { id: "99d13168-c4e2-4d2a-958d-287c946a9deb", name: "Hatico Hoàng Mai", shortCode: "HM" },
-  { id: "413402c0-e251-4b75-a3b8-631374422032", name: "Hatico Quảng Trị", shortCode: "QT" },
+  { id: "e0462eae-7a2a-4e4d-a03b-ed9423871289", name: "Hatico Việt Nam – Tổng kho", shortCode: "HN", picName: "Ngô Gia Bảo" },
+  { id: "a8a828f2-6338-45a5-afa8-2a4afa9ac4ae", name: "Hatico Tây Nguyên", shortCode: "TN", picName: "Võ Thành Trung" },
+  { id: "186dcf21-63cd-4c17-a0d2-17c1eb67963b", name: "Hatico Đồng Nai", shortCode: "DN", picName: "Phạm Phương Thảo" },
+  { id: "99d13168-c4e2-4d2a-958d-287c946a9deb", name: "Hatico Hoàng Mai", shortCode: "HM", picName: "Hồ Mạnh Hùng" },
+  { id: "413402c0-e251-4b75-a3b8-631374422032", name: "Hatico Quảng Trị", shortCode: "QT", picName: "Nguyễn Quang Đồng" },
 ] as const;
 
 export const HATICO_FANPAGES = [
@@ -33,6 +33,57 @@ export const HATICO_FANPAGES = [
   "Hatico Hoàng Mai",
   "Hatico Quảng Trị",
 ] as const;
+
+export function getBranchPIC(branchId?: string, branchName?: string): string {
+  if (branchId) {
+    const b = HATICO_BRANCHES.find((item) => item.id === branchId);
+    if (b) return b.picName;
+  }
+  const nameToTest = branchName || branchId;
+  if (!nameToTest) return "Ngô Gia Bảo";
+
+  const lower = nameToTest.toLowerCase();
+  if (lower.includes("quảng trị")) return "Nguyễn Quang Đồng";
+  if (lower.includes("đồng nai")) return "Phạm Phương Thảo";
+  if (lower.includes("tây nguyên")) return "Võ Thành Trung";
+  if (lower.includes("hoàng mai")) return "Hồ Mạnh Hùng";
+  if (lower.includes("tổng kho") || lower.includes("việt nam")) return "Ngô Gia Bảo";
+
+  return "Ngô Gia Bảo";
+}
+
+
+export function isPostInBranch(
+  c: { branchId?: string; branchName?: string },
+  targetBranchId: string
+): boolean {
+  if (targetBranchId === "all") return true;
+  const targetBranch = HATICO_BRANCHES.find((b) => b.id === targetBranchId);
+  if (!targetBranch) return false;
+
+  // 1. Direct branchId match
+  if (c.branchId && c.branchId === targetBranchId) return true;
+
+  // 2. Direct or keyword match by branchName
+  if (c.branchName) {
+    if (c.branchName === targetBranch.name) return true;
+    const bNameLower = targetBranch.name.toLowerCase();
+    const cNameLower = c.branchName.toLowerCase();
+    if (bNameLower.includes("tây nguyên") && cNameLower.includes("tây nguyên")) return true;
+    if (bNameLower.includes("hoàng mai") && cNameLower.includes("hoàng mai")) return true;
+    if (bNameLower.includes("đồng nai") && cNameLower.includes("đồng nai")) return true;
+    if (bNameLower.includes("quảng trị") && cNameLower.includes("quảng trị")) return true;
+    if (bNameLower.includes("tổng kho") && (cNameLower.includes("tổng kho") || cNameLower.includes("việt nam"))) return true;
+    return false;
+  }
+
+  // 3. Fallback to Tổng kho only if post has neither branchId nor branchName
+  if (!c.branchId && !c.branchName && targetBranch.id === HATICO_BRANCHES[0].id) {
+    return true;
+  }
+
+  return false;
+}
 
 export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   facebook_organic: "Facebook Organic",

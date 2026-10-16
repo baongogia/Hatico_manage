@@ -584,12 +584,17 @@ export function PeriodicCreateModal({
 
           {/* Conflict warning */}
           {existingConflict && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs leading-snug">
-              ⚠️ Kỳ này đã có báo cáo trong hệ thống (trạng thái:{" "}
-              <strong>
-                {existingConflict.status === "closed" ? "Đã chốt" : "Bản nháp"}
-              </strong>
-              ). Bấm &quot;Mở báo cáo hiện có&quot; để xem chi tiết.
+            <div className="p-3 bg-slate-100 border border-slate-300 rounded-md text-slate-800 text-xs leading-snug flex items-start gap-2">
+              <svg className="w-4 h-4 text-slate-700 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>
+                Kỳ này đã có báo cáo trong hệ thống (trạng thái:{" "}
+                <strong>
+                  {existingConflict.status === "closed" ? "Đã chốt" : "Bản nháp"}
+                </strong>
+                ). Bấm &quot;Mở báo cáo hiện có&quot; để xem chi tiết.
+              </span>
             </div>
           )}
 

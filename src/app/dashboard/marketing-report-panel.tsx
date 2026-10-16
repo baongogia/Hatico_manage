@@ -77,6 +77,7 @@ function toEditablePostRows(posts: MarketingPostRow[]): EditablePostRow[] {
   return posts.map((post, i) => ({
     ...post,
     id: post.id,
+    branch_id: post.branch_id || HATICO_BRANCHES[0].id,
     rowId: post.id || `${post.report_id}-${post.report_date}-${i}`,
   }));
 }
@@ -92,7 +93,7 @@ function togglePlatform(currentPlatforms: string, platformToToggle: string) {
   const list = currentPlatforms.split(", ").filter(Boolean);
   if (list.includes(platformToToggle)) {
     const remaining = list.filter((p) => p !== platformToToggle);
-    return remaining.length > 0 ? remaining.join(", ") : platformToToggle;
+    return remaining.join(", ");
   } else {
     return [...list, platformToToggle].join(", ");
   }
@@ -106,7 +107,7 @@ function newEmptyPostRow(todayStr: string, branchId?: string): EditablePostRow {
     rowId: `new-post-${newId}`,
     report_id: "",
     report_date: todayStr,
-    platform: "Tiktok",
+    platform: "",
     title: "",
     link: "",
     views: "",
@@ -139,7 +140,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     return `${yyyy}-${mm}`;
   });
   const [filterPlatform, setFilterPlatform] = useState<string>("all");
-  const [filterBranch, setFilterBranch] = useState<string>("all");
+  const [filterBranch, setFilterBranch] = useState<string>(HATICO_BRANCHES[0].id);
 
   const [editingRowIds, setEditingRowIds] = useState<Set<string>>(new Set());
 
@@ -191,7 +192,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         if (!post.report_date.startsWith(filterMonth)) return false;
       }
       if (filterPlatform !== "all") {
-        if (!post.platform.includes(filterPlatform)) return false;
+        if (!post.platform.includes(filterPlatform) && !editingRowIds.has(post.rowId)) return false;
       }
       if (filterBranch !== "all") {
         const postBranch = post.branch_id || HATICO_BRANCHES[0].id;
@@ -199,7 +200,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
       }
       return true;
     });
-  }, [posts, filterMonth, filterPlatform, filterBranch]);
+  }, [posts, filterMonth, filterPlatform, filterBranch, editingRowIds]);
 
   const [marketingStaff, setMarketingStaff] = useState<
     { id: string; full_name: string }[]
@@ -219,15 +220,22 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   const [showExcelPreview, setShowExcelPreview] = useState(false);
 
   const postTitleRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const blurTimeoutRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const dirtyDatesRef = useRef<Set<string>>(new Set());
 
   const latestPosts = useRef(posts);
   const latestEvents = useRef(events);
+  const activeDatePickerRef = useRef<typeof activeDatePicker>(activeDatePicker);
 
   useEffect(() => {
     latestPosts.current = posts;
     latestEvents.current = events;
   }, [posts, events]);
+
+  useEffect(() => {
+    activeDatePickerRef.current = activeDatePicker;
+  }, [activeDatePicker]);
 
   const formatDateDisplay = (dateString: string) => {
     if (!dateString) return "";
@@ -435,6 +443,12 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   };
 
   const finishEditRow = (rowId: string) => {
+    const existingTimer = blurTimeoutRefs.current.get(rowId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      blurTimeoutRefs.current.delete(rowId);
+    }
+
     setEditingRowIds((prev) => {
       const next = new Set(prev);
       next.delete(rowId);
@@ -444,18 +458,58 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
     setPosts((prev) => {
       const target = prev.find((r) => r.rowId === rowId);
       if (target && target.rowId.startsWith("new-") && !target.title.trim()) {
-        return prev.filter((r) => r.rowId !== rowId);
+        const next = prev.filter((r) => r.rowId !== rowId);
+        latestPosts.current = next;
+        return next;
       }
+      latestPosts.current = prev;
       return prev;
     });
 
-    const currentPosts = latestPosts.current;
-    const row = currentPosts.find((r) => r.rowId === rowId);
-    if (row && row.title.trim()) {
-      startSave(async () => {
-        await persistReports(currentPosts, latestEvents.current, [], true);
-      });
+    setTimeout(() => {
+      const currentPosts = latestPosts.current;
+      const row = currentPosts.find((r) => r.rowId === rowId);
+      if (row && row.title.trim()) {
+        dirtyDatesRef.current.add(row.report_date);
+        startSave(async () => {
+          await persistReports(currentPosts, latestEvents.current, [], true);
+        });
+      }
+    }, 40);
+  };
+
+  const handleRowBlur = (
+    e: React.FocusEvent<HTMLTableRowElement>,
+    rowId: string
+  ) => {
+    const existing = blurTimeoutRefs.current.get(rowId);
+    if (existing) clearTimeout(existing);
+
+    // If related focus target is within this row, stay in edit mode
+    if (
+      e.currentTarget &&
+      e.relatedTarget &&
+      e.currentTarget.contains(e.relatedTarget as Node)
+    ) {
+      return;
     }
+
+    const timer = setTimeout(() => {
+      if (activeDatePickerRef.current?.rowId === rowId) {
+        return;
+      }
+      const rowEl = rowRefs.current.get(rowId);
+      if (
+        rowEl &&
+        document.activeElement &&
+        rowEl.contains(document.activeElement)
+      ) {
+        return;
+      }
+      finishEditRow(rowId);
+    }, 120);
+
+    blurTimeoutRefs.current.set(rowId, timer);
   };
 
   const handleMarketingBlur = () => {
@@ -506,9 +560,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         status: post.status,
         topic: post.topic,
         content_type: post.content_type,
-        branch_id:
-          post.branch_id ||
-          (filterBranch !== "all" ? filterBranch : HATICO_BRANCHES[0].id),
+        branch_id: post.branch_id || HATICO_BRANCHES[0].id,
         author_id: post.author_id,
       });
     });
@@ -1020,6 +1072,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                   />
                 </th>
                 <th className="px-3 py-2.5 w-20 text-center">Nền tảng</th>
+                <th className="px-3 py-2.5 w-32 text-center">Chi nhánh</th>
                 <th className="px-4 py-2.5 min-w-[14rem]">
                   Tiêu đề / Nội dung bài đăng
                 </th>
@@ -1033,7 +1086,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
               {displayedPosts.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center py-12 text-slate-400 italic font-medium"
                   >
                     {isInitialLoaded
@@ -1043,13 +1096,17 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                 </tr>
               ) : (
                 displayedPosts.map((row) => {
-                  const isEditing =
-                    editingRowIds.has(row.rowId) || !row.title.trim();
+                  const isEditing = editingRowIds.has(row.rowId);
                   const isSelected = selectedPosts.has(row.rowId);
 
                   return (
                     <tr
                       key={row.rowId}
+                      ref={(el) => {
+                        if (el) rowRefs.current.set(row.rowId, el);
+                        else rowRefs.current.delete(row.rowId);
+                      }}
+                      onBlur={(e) => handleRowBlur(e, row.rowId)}
                       className={`hover:bg-slate-50/70 transition-colors ${
                         isSelected ? "bg-slate-50/90" : ""
                       }`}
@@ -1149,7 +1206,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                         ) : (
                           <div
                             className="flex items-center justify-center gap-1.5"
-                            title={row.platform}
+                            title={row.platform || "Chưa chọn nền tảng"}
                           >
                             {row.platform.includes("Tiktok") && (
                               <span
@@ -1183,7 +1240,69 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                                 {WebsiteIcon}
                               </span>
                             )}
+                            {!row.platform && (
+                              <span className="text-slate-300 select-none font-normal">
+                                —
+                              </span>
+                            )}
                           </div>
+                        )}
+                      </td>
+
+                      {/* Chi nhánh (Branch) */}
+                      <td className="px-3 py-2.5 text-center">
+                        {isEditing ? (
+                          <select
+                            value={row.branch_id || HATICO_BRANCHES[0].id}
+                            onChange={(e) =>
+                              updatePostRow(
+                                row.rowId,
+                                "branch_id",
+                                e.target.value,
+                                true,
+                              )
+                            }
+                            className="w-full text-[11px] h-8 px-1.5 border border-slate-300 rounded bg-white font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary/30 shadow-2xs"
+                          >
+                            {HATICO_BRANCHES.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap border ${
+                              row.branch_id === HATICO_BRANCHES[1].id
+                                ? "bg-amber-50 text-amber-800 border-amber-200"
+                                : row.branch_id === HATICO_BRANCHES[2].id
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  : row.branch_id === HATICO_BRANCHES[3].id
+                                    ? "bg-purple-50 text-purple-800 border-purple-200"
+                                    : row.branch_id === HATICO_BRANCHES[4].id
+                                      ? "bg-sky-50 text-sky-800 border-sky-200"
+                                      : "bg-slate-100 text-slate-800 border-slate-200"
+                            }`}
+                            title={
+                              HATICO_BRANCHES.find(
+                                (b) =>
+                                  b.id ===
+                                  (row.branch_id || HATICO_BRANCHES[0].id),
+                              )?.name || "Hatico Việt Nam – Tổng kho"
+                            }
+                          >
+                            {row.branch_id === HATICO_BRANCHES[0].id
+                              ? "Tổng kho"
+                              : row.branch_id === HATICO_BRANCHES[1].id
+                                ? "Tây Nguyên"
+                                : row.branch_id === HATICO_BRANCHES[2].id
+                                  ? "Đồng Nai"
+                                  : row.branch_id === HATICO_BRANCHES[3].id
+                                    ? "Hoàng Mai"
+                                    : row.branch_id === HATICO_BRANCHES[4].id
+                                      ? "Quảng Trị"
+                                      : "Tổng kho"}
+                          </span>
                         )}
                       </td>
 
@@ -1201,7 +1320,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             onChange={(e) =>
                               updatePostRow(row.rowId, "title", e.target.value)
                             }
-                            onBlur={handleMarketingBlur}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
                                 e.preventDefault();
@@ -1246,7 +1364,6 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             onChange={(e) =>
                               updatePostRow(row.rowId, "link", e.target.value)
                             }
-                            onBlur={handleMarketingBlur}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
                                 e.preventDefault();
@@ -1354,7 +1471,7 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
                             <button
                               type="button"
                               onClick={() => finishEditRow(row.rowId)}
-                              title="Hoàn tất chỉnh sửa"
+                              title="Hoàn tất chỉnh sửa (hoặc bấm ra ngoài để tự lưu)"
                               aria-label="Hoàn tất"
                               className="w-7 h-7 inline-flex items-center justify-center rounded border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all cursor-pointer shadow-2xs"
                             >
@@ -1457,10 +1574,36 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         <DatePickerModal
           open={!!activeDatePicker}
           value={activeDatePicker.value}
-          onClose={() => setActiveDatePicker(null)}
-          onSelect={(newDate) => {
-            updatePostRow(activeDatePicker.rowId, "report_date", newDate, true);
+          onClose={() => {
+            const rowId = activeDatePicker.rowId;
             setActiveDatePicker(null);
+            setTimeout(() => {
+              const rowEl = rowRefs.current.get(rowId);
+              if (
+                rowEl &&
+                document.activeElement &&
+                rowEl.contains(document.activeElement)
+              ) {
+                return;
+              }
+              finishEditRow(rowId);
+            }, 100);
+          }}
+          onSelect={(newDate) => {
+            const rowId = activeDatePicker.rowId;
+            updatePostRow(rowId, "report_date", newDate, true);
+            setActiveDatePicker(null);
+            setTimeout(() => {
+              const rowEl = rowRefs.current.get(rowId);
+              if (
+                rowEl &&
+                document.activeElement &&
+                rowEl.contains(document.activeElement)
+              ) {
+                return;
+              }
+              finishEditRow(rowId);
+            }, 100);
           }}
         />
       )}

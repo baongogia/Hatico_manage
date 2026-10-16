@@ -1950,7 +1950,7 @@ export async function saveMarketingReports(params: {
       status: p.status,
       topic: p.topic,
       content_type: p.content_type,
-      branch_id: p.branch_id,
+      branch_id: p.branch_id || "e0462eae-7a2a-4e4d-a03b-ed9423871289",
       author_id: p.author_id,
     }));
 
