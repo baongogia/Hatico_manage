@@ -17,12 +17,9 @@ export const metadata: Metadata = {
   title: "Hatico Manager - Quản lý Báo cáo Công việc",
   description: "Hệ thống quản lý công việc và báo cáo hàng ngày đa phân cấp - Công ty Cổ phần XNK Quốc tế Hatico",
   icons: {
-    icon: [
-      { url: "/logo/favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/logo/favicon-16.png", sizes: "16x16", type: "image/png" },
-      { url: "/logo/favicon-48.png", sizes: "48x48", type: "image/png" },
-    ],
-    apple: "/logo/favicon-192.png",
+    icon: [{ url: "/logo/Logo.png" }],
+    shortcut: "/logo/Logo.png",
+    apple: "/logo/Logo.png",
   },
   manifest: "/manifest.webmanifest",
 };
@@ -45,6 +42,8 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
+        <link rel="icon" type="image/png" href="/logo/Logo.png" />
+        <link rel="apple-touch-icon" href="/logo/Logo.png" />
         <link
           rel="preconnect"
           href="https://bmmmdhinlqrlxfrtozpt.supabase.co"

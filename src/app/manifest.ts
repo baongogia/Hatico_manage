@@ -11,6 +11,11 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#09090b',
     icons: [
       {
+        src: '/logo/Logo.png',
+        sizes: 'any',
+        type: 'image/png',
+      },
+      {
         src: '/logo/favicon-192.png',
         sizes: '192x192',
         type: 'image/png',
