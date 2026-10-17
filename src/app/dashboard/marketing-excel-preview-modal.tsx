@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { MarketingPostRow, MarketingEventRow } from "@/lib/report-data";
 
 const PERIOD_LABELS = {
@@ -31,6 +31,28 @@ export function MarketingExcelPreviewModal({
   events,
 }: MarketingExcelPreviewModalProps) {
   const [activeTab, setActiveTab] = useState<"kpi" | "posts">("kpi");
+
+  const expandedPosts = useMemo(() => {
+    const result: (MarketingPostRow & { platformDisplay: string })[] = [];
+    posts.forEach((post) => {
+      const raw = post.platform || "";
+      const list = raw.split(",").map((p) => p.trim()).filter(Boolean);
+      if (list.length > 1) {
+        list.forEach((p) => {
+          result.push({
+            ...post,
+            platformDisplay: p,
+          });
+        });
+      } else {
+        result.push({
+          ...post,
+          platformDisplay: list[0] || post.platform || "—",
+        });
+      }
+    });
+    return result;
+  }, [posts]);
 
   let tiktokCount = 0, tiktokViews = 0, tiktokOver5k = 0, tiktokOver10k = 0;
   let fbCount = 0, fbReach = 0, fbInteractions = 0, fbComments = 0;
@@ -295,7 +317,7 @@ export function MarketingExcelPreviewModal({
                   3
                 </div>
                 <div className="col-span-5 border-r border-b border-slate-200 px-3 text-slate-600 text-[10px] flex items-center h-10 leading-snug">
-                  Nhân viên: {staffName}{branchName ? ` · ${branchName}` : ""} · Khoảng: {PERIOD_LABELS[period]} · Tổng: {posts.length} bài viết{platformStatsStr}
+                  Nhân viên: {staffName}{branchName ? ` · ${branchName}` : ""} · Khoảng: {PERIOD_LABELS[period]} · Tổng: {expandedPosts.length} bài viết{platformStatsStr}
                 </div>
 
                 {/* Row 4: Spacer */}
@@ -320,7 +342,7 @@ export function MarketingExcelPreviewModal({
                 ))}
 
                 {/* Data Rows */}
-                {posts.length === 0 ? (
+                {expandedPosts.length === 0 ? (
                   <div className="contents">
                     <div className="bg-[#f3f4f6] text-[#6b7280] text-center font-semibold border-r border-b border-slate-300 flex items-center justify-center text-[10px] h-10">
                       6
@@ -330,7 +352,7 @@ export function MarketingExcelPreviewModal({
                     </div>
                   </div>
                 ) : (
-                  posts.map((post, idx) => {
+                  expandedPosts.map((post, idx) => {
                     const dataRowIndex = 6 + idx;
                     const isEven = idx % 2 === 1;
                     const rowBg = isEven ? "bg-[#f8fafc]" : "bg-white";
@@ -341,7 +363,7 @@ export function MarketingExcelPreviewModal({
                           {dataRowIndex}
                         </div>
                         <div className={`${rowBg} border-r border-b border-slate-200 px-2 font-semibold text-slate-900 flex items-start py-1.5 justify-center text-center`}>
-                          {post.platform}
+                          {post.platformDisplay}
                         </div>
                         <div className={`${rowBg} border-r border-b border-slate-200 px-2 text-slate-700 flex items-start py-1.5`}>
                           {post.title || "—"}

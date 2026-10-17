@@ -259,8 +259,27 @@ export async function downloadMarketingReportExcel(filename: string, options: Ex
   if (webCount > 0) platformCounts.push(`Website: ${webCount}`);
   const platformStatsStr = platformCounts.length > 0 ? ` (${platformCounts.join(", ")})` : "";
 
+  const expandedPosts: (MarketingPostRow & { platformDisplay: string })[] = [];
+  posts.forEach((post) => {
+    const raw = post.platform || "";
+    const list = raw.split(",").map((p) => p.trim()).filter(Boolean);
+    if (list.length > 1) {
+      list.forEach((p) => {
+        expandedPosts.push({
+          ...post,
+          platformDisplay: p,
+        });
+      });
+    } else {
+      expandedPosts.push({
+        ...post,
+        platformDisplay: list[0] || post.platform || "—",
+      });
+    }
+  });
+
   const pLine3 = addMergedLinePost(
-    `Nhân viên: ${staffName}${branchName ? ` · ${branchName}` : ""} · Khoảng: ${PERIOD_LABELS[period]} · Tổng: ${posts.length} bài viết${platformStatsStr}`,
+    `Nhân viên: ${staffName}${branchName ? ` · ${branchName}` : ""} · Khoảng: ${PERIOD_LABELS[period]} · Tổng: ${expandedPosts.length} bài viết${platformStatsStr}`,
     {
       font: { size: 10, color: { argb: "FF334155" } },
       alignment: { wrapText: true, vertical: "middle" },
@@ -293,7 +312,7 @@ export async function downloadMarketingReportExcel(filename: string, options: Ex
   });
   postHeaderRow.height = 22;
 
-  if (posts.length === 0) {
+  if (expandedPosts.length === 0) {
     const emptyRow = postSheet.addRow(["—", "—", "—", "—", "—", "Chưa có dữ liệu"]);
     styleRow(emptyRow, {
       font: { size: 10, italic: true, color: { argb: "FF64748B" } },
@@ -301,9 +320,9 @@ export async function downloadMarketingReportExcel(filename: string, options: Ex
       alignment: { vertical: "middle", horizontal: "center" },
     });
   } else {
-    posts.forEach((post, i) => {
+    expandedPosts.forEach((post, i) => {
       const dataRow = postSheet.addRow([
-        post.platform,
+        post.platformDisplay,
         post.title,
         post.link,
         post.views,

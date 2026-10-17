@@ -85,6 +85,60 @@ export function getCurrentYear(): number {
   return new Date().getFullYear();
 }
 
+// Helper trích xuất danh sách nền tảng cho 1 nội dung (hỗ trợ đa nền tảng)
+export function extractContentPlatforms(c: {
+  platform?: string;
+  platform_raw?: string;
+  platforms?: string[];
+}): { platformKey: "facebook" | "tiktok" | "youtube" | "website"; platformName: string }[] {
+  const result: { platformKey: "facebook" | "tiktok" | "youtube" | "website"; platformName: string }[] = [];
+  const seen = new Set<string>();
+
+  const rawList: string[] = [];
+  if (Array.isArray(c.platforms) && c.platforms.length > 0) {
+    rawList.push(...c.platforms);
+  } else if (c.platform_raw) {
+    rawList.push(...c.platform_raw.split(",").map((s) => s.trim()));
+  } else if (c.platform) {
+    rawList.push(...c.platform.split(",").map((s) => s.trim()));
+  }
+
+  for (const item of rawList) {
+    const s = item.toLowerCase();
+    if (s.includes("facebook") && !seen.has("facebook")) {
+      seen.add("facebook");
+      result.push({ platformKey: "facebook", platformName: "Facebook" });
+    }
+    if (s.includes("tiktok") && !seen.has("tiktok")) {
+      seen.add("tiktok");
+      result.push({ platformKey: "tiktok", platformName: "TikTok" });
+    }
+    if (s.includes("youtube") && !seen.has("youtube")) {
+      seen.add("youtube");
+      result.push({ platformKey: "youtube", platformName: "YouTube" });
+    }
+    if (s.includes("website") && !seen.has("website")) {
+      seen.add("website");
+      result.push({ platformKey: "website", platformName: "Website" });
+    }
+  }
+
+  if (result.length === 0) {
+    const s = (c.platform_raw || c.platform || "").toLowerCase();
+    if (s.includes("tiktok")) {
+      result.push({ platformKey: "tiktok", platformName: "TikTok" });
+    } else if (s.includes("youtube")) {
+      result.push({ platformKey: "youtube", platformName: "YouTube" });
+    } else if (s.includes("website")) {
+      result.push({ platformKey: "website", platformName: "Website" });
+    } else {
+      result.push({ platformKey: "facebook", platformName: "Facebook" });
+    }
+  }
+
+  return result;
+}
+
 // ==============================================================================
 // CORE DATA AGGREGATION ENGINE
 // ==============================================================================
@@ -207,34 +261,32 @@ async function computePeriodMetrics(
     orders: systemLeadStats.closed,
   };
 
+
+
   // Full contents grouped by branch (theo thứ tự chi nhánh Hatico), then sorted by publish_date desc
+  // Phân rã (flatten) nội dung đa nền tảng thành từng dòng bài đăng độc lập theo từng nền tảng
   const branchOrderMap = new Map<string, number>(HATICO_BRANCHES.map((b, idx) => [b.id as string, idx]));
   const topContents: TopContentItem[] = contents
-    .map((c) => {
-      const bObj = HATICO_BRANCHES.find((b) => b.id === c.branch_id);
-      return {
-        id: c.id,
+    .flatMap((c) => {
+      const effBranchId = c.branch_id || HATICO_BRANCHES[0].id;
+      const bObj = HATICO_BRANCHES.find((b) => b.id === effBranchId);
+      const platforms = extractContentPlatforms(c);
+      return platforms.map((p) => ({
+        id: platforms.length > 1 ? `${c.id}_${p.platformKey}` : c.id,
         title: c.title,
-        platform:
-          c.platform === "facebook"
-            ? "Facebook"
-            : c.platform === "tiktok"
-            ? "TikTok"
-            : c.platform === "youtube"
-            ? "YouTube"
-            : "Website",
-        platformKey: c.platform,
+        platform: p.platformName,
+        platformKey: p.platformKey,
         publishDate: c.publish_date,
         views: c.views || 0,
         interactions: c.interactions || 0,
         link: c.link,
         contentType: c.content_type,
         authorName: c.author_name,
-        branchId: c.branch_id || HATICO_BRANCHES[0].id,
+        branchId: effBranchId,
         branchName: bObj?.name || HATICO_BRANCHES[0].name,
         leads: c.leads_count || 0,
         orders: c.orders_count || 0,
-      };
+      }));
     })
     .sort((a, b) => {
       // 1. Gom nhóm theo từng chi nhánh trước (không phân chia ngẫu nhiên)
@@ -336,7 +388,14 @@ async function computePeriodMetrics(
 
   // 3. KẾT QUẢ THEO CHI NHÁNH (5 chi nhánh Hatico)
   const branchResults: BranchResultRow[] = HATICO_BRANCHES.map((b) => {
-    const bContents = contents.filter((c) => c.branch_id === b.id);
+    const bContents = contents.filter((c) => {
+      const effBranchId = c.branch_id || HATICO_BRANCHES[0].id;
+      return effBranchId === b.id;
+    });
+    const bPostCount = bContents.reduce(
+      (sum, c) => sum + extractContentPlatforms(c).length,
+      0
+    );
     const bLeads = leads.filter((l) => l.branch_id === b.id);
     const bStats = countStatus(bLeads);
     const bCampaigns = campaigns.filter((c) => c.branch_id === b.id);
@@ -345,7 +404,7 @@ async function computePeriodMetrics(
     return {
       branchId: b.id,
       branchName: b.name,
-      contentCount: bContents.length,
+      contentCount: bPostCount,
       leads: bStats.total,
       consulted: bStats.consulted,
       converted: bStats.converted,

@@ -65,7 +65,31 @@ export async function exportPeriodicMarketingReportExcel(report: MarketingPeriod
   const channelTotals = report.data.channelTotals;
   const branchResults = report.data.branchResults || [];
   const totalSystemBranch = report.data.totalSystemBranch;
-  const topContents = report.data.topContents || [];
+  const rawTopContents = report.data.topContents || [];
+  const topContents: typeof rawTopContents = [];
+  rawTopContents.forEach((p) => {
+    if (p.platform && p.platform.includes(",")) {
+      const parts = p.platform.split(",").map((s) => s.trim()).filter(Boolean);
+      parts.forEach((part) => {
+        const lower = part.toLowerCase();
+        const pKey = lower.includes("tiktok")
+          ? "tiktok"
+          : lower.includes("youtube")
+          ? "youtube"
+          : lower.includes("website")
+          ? "website"
+          : "facebook";
+        topContents.push({
+          ...p,
+          id: `${p.id}_${pKey}`,
+          platform: part,
+          platformKey: pKey,
+        });
+      });
+    } else {
+      topContents.push(p);
+    }
+  });
   const fbAds = report.data.facebookAds;
   const ttAds = report.data.tiktokAds;
   const evalData = report.evaluation;
