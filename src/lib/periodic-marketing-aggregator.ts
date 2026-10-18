@@ -504,6 +504,7 @@ export async function aggregatePeriodicReportDataByRange(
     prevKpis: prevMetrics.kpis,
     kpiComparison,
     channelResults: currentMetrics.channelResults,
+    prevChannelResults: prevMetrics.channelResults,
     channelTotals: currentMetrics.channelTotals,
     topContents: currentMetrics.topContents,
     facebookAds: currentMetrics.facebookAds,

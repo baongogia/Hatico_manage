@@ -129,6 +129,7 @@ export interface PeriodicReportDataSnapshot {
   prevKpis: PeriodicReportKPIs | null;
   kpiComparison: Record<keyof PeriodicReportKPIs, KPICardComparison>;
   channelResults: ChannelResultRow[];
+  prevChannelResults?: ChannelResultRow[];
   channelTotals: {
     contentCount: number;
     views: number;

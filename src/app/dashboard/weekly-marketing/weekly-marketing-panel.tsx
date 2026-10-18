@@ -521,17 +521,20 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
     if (!selectedReport) return;
     const originalTitle = document.title;
     let periodPart = "";
-    if (selectedReport.reportType === "weekly") {
+    if (selectedReport.periodLabel) {
+      periodPart = selectedReport.periodLabel.replace(/[\/]/g, "-").replace(/–/g, "-");
+    } else if (selectedReport.reportType === "weekly") {
       if (selectedReport.periodSpan && selectedReport.periodSpan > 1) {
-        const endWeek = selectedReport.periodNumber + selectedReport.periodSpan - 1;
-        periodPart = `Tuần ${selectedReport.periodNumber}-${endWeek} Năm ${selectedReport.year}`;
+        const startW = selectedReport.startWeek || selectedReport.periodNumber;
+        const endW = selectedReport.endWeek || (startW + selectedReport.periodSpan - 1);
+        periodPart = `Tuần ${startW}-${endW} Năm ${selectedReport.year}`;
       } else {
         periodPart = `Tuần ${selectedReport.periodNumber} Năm ${selectedReport.year}`;
       }
     } else if (selectedReport.reportType === "monthly") {
       periodPart = `Tháng ${selectedReport.periodNumber} Năm ${selectedReport.year}`;
     } else {
-      periodPart = selectedReport.periodLabel || `Năm ${selectedReport.year}`;
+      periodPart = `Năm ${selectedReport.year}`;
     }
 
     const branchPart = selectedReport.branchName && selectedReport.branchName !== "Toàn hệ thống"
@@ -559,17 +562,32 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
     }
   };
 
-  // Status Badge (Clean Monochrome)
-  const getStatusBadge = (status: "draft" | "closed") => {
+  // Status Badge / Icon (Icon 2 dấu tick hiện đại cho trạng thái "Đã chốt")
+  const getStatusBadge = (status: "draft" | "closed", size: "sm" | "md" = "md") => {
     if (status === "closed") {
+      const iconSize = size === "sm" ? "w-4 h-4" : "w-5 h-5";
       return (
-        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-900 text-white tracking-wider uppercase">
-          Đã chốt
+        <span
+          title="Đã chốt"
+          className="inline-flex items-center justify-center text-emerald-600 shrink-0"
+          aria-label="Đã chốt"
+        >
+          <svg
+            className={`${iconSize} stroke-[2.4]`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6 7 17l-5-5" />
+            <path d="m22 10-7.5 7.5L13 16" />
+          </svg>
         </span>
       );
     }
     return (
-      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 tracking-wider uppercase">
+      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-300 tracking-wider uppercase shrink-0">
         Bản nháp
       </span>
     );
@@ -754,7 +772,7 @@ export function WeeklyMarketingPanel({ profile }: WeeklyMarketingPanelProps) {
                           </span>
                         )}
                       </div>
-                      {rep.status === "closed" && getStatusBadge("closed")}
+                      {rep.status === "closed" && getStatusBadge("closed", "sm")}
                     </div>
 
                     <div className="text-[11px] text-slate-500 mb-1 flex items-center justify-between">
