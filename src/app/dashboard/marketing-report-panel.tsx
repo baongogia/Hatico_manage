@@ -126,13 +126,16 @@ function togglePlatform(currentPlatforms: string, platformToToggle: string) {
 
 function newEmptyPostRow(todayStr: string, branchId?: string): EditablePostRow {
   const newId = crypto.randomUUID();
+  const effBranchId = branchId || HATICO_BRANCHES[0].id;
+  const isBranchOtherThanMain = effBranchId !== HATICO_BRANCHES[0].id;
+
   return {
     type: "marketing_post",
     id: newId,
     rowId: `new-post-${newId}`,
     report_id: "",
     report_date: todayStr,
-    platform: "",
+    platform: isBranchOtherThanMain ? "Facebook" : "",
     title: "",
     link: "",
     views: "",
@@ -140,7 +143,7 @@ function newEmptyPostRow(todayStr: string, branchId?: string): EditablePostRow {
     comments: "",
     shares: "",
     status: "completed",
-    branch_id: branchId || HATICO_BRANCHES[0].id,
+    branch_id: effBranchId,
   };
 }
 
@@ -425,9 +428,19 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
         if (field === "report_date") dirtyDatesRef.current.add(value);
       }
 
-      const next = prev.map((r) =>
-        r.rowId === rowId ? { ...r, [field]: value } : r,
-      );
+      const next = prev.map((r) => {
+        if (r.rowId !== rowId) return r;
+        const updated = { ...r, [field]: value };
+        // Nếu chuyển sang chi nhánh khác tổng kho mà nền tảng chưa chọn thì mặc định là Facebook
+        if (
+          field === "branch_id" &&
+          value !== HATICO_BRANCHES[0].id &&
+          !r.platform
+        ) {
+          updated.platform = "Facebook";
+        }
+        return updated;
+      });
       if (shouldSave) {
         const editedRow = next.find((r) => r.rowId === rowId);
         if (editedRow && editedRow.title.trim()) {

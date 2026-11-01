@@ -57,6 +57,14 @@ export function PeriodicCreateModal({
     return "1_week";
   });
 
+  React.useEffect(() => {
+    if (isOpen) {
+      if (reportType === "monthly") setSpanMode("month");
+      else if (reportType === "custom") setSpanMode("custom_dates");
+      else setSpanMode("1_week");
+    }
+  }, [isOpen, reportType]);
+
   const [year, setYear] = useState<number>(currentYear);
   const [weekNumber, setWeekNumber] = useState<number>(currentWeek);
 
@@ -199,10 +207,26 @@ export function PeriodicCreateModal({
       r.endDate === resolved.endDate
   );
 
-  const handleApplyPreset = (daysBack: number) => {
+  const handleApplyPreset = (preset: number | "this_month" | "last_month") => {
+    if (preset === "this_month") {
+      const now = new Date();
+      const s = new Date(now.getFullYear(), now.getMonth(), 1);
+      const e = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      setCustomStartDate(s.toISOString().slice(0, 10));
+      setCustomEndDate(e.toISOString().slice(0, 10));
+      return;
+    }
+    if (preset === "last_month") {
+      const now = new Date();
+      const s = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const e = new Date(now.getFullYear(), now.getMonth(), 0);
+      setCustomStartDate(s.toISOString().slice(0, 10));
+      setCustomEndDate(e.toISOString().slice(0, 10));
+      return;
+    }
     const end = new Date();
     const start = new Date();
-    start.setDate(end.getDate() - (daysBack - 1));
+    start.setDate(end.getDate() - (preset - 1));
     setCustomStartDate(start.toISOString().slice(0, 10));
     setCustomEndDate(end.toISOString().slice(0, 10));
   };
@@ -244,10 +268,14 @@ export function PeriodicCreateModal({
         <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
             <h3 className="text-sm font-bold text-slate-900">
-              {reportType === "monthly" ? "Tạo Báo cáo Tháng" : "Tạo Báo cáo Marketing Linh hoạt"}
+              {spanMode === "month"
+                ? "Tạo Báo cáo Tháng"
+                : spanMode === "1_week"
+                  ? "Tạo Báo cáo Tuần"
+                  : "Tạo Báo cáo Marketing Linh hoạt"}
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Hỗ trợ tạo báo cáo 1 tuần, 2 tuần, 3 tuần hoặc tùy chọn ngày linh hoạt
+              Hỗ trợ tạo báo cáo 1 tuần, 2 tuần, 3 tuần, theo tháng hoặc tùy chọn ngày linh hoạt
             </p>
           </div>
           <button
@@ -266,11 +294,11 @@ export function PeriodicCreateModal({
             <label className="block text-slate-700 font-semibold mb-1.5">
               Chọn độ dài / Kiểu kỳ báo cáo
             </label>
-            <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-md border border-slate-200">
+            <div className="grid grid-cols-5 gap-1 p-1 bg-slate-100 rounded-md border border-slate-200">
               <button
                 type="button"
                 onClick={() => setSpanMode("1_week")}
-                className={`py-1.5 px-2 rounded text-xs font-semibold transition-all cursor-pointer text-center ${
+                className={`py-1.5 px-1.5 rounded text-xs font-semibold transition-all cursor-pointer text-center ${
                   spanMode === "1_week"
                     ? "bg-white text-primary shadow-xs font-bold"
                     : "text-slate-600 hover:text-slate-900"
@@ -281,7 +309,7 @@ export function PeriodicCreateModal({
               <button
                 type="button"
                 onClick={() => setSpanMode("2_weeks")}
-                className={`py-1.5 px-2 rounded text-xs font-semibold transition-all cursor-pointer text-center ${
+                className={`py-1.5 px-1.5 rounded text-xs font-semibold transition-all cursor-pointer text-center ${
                   spanMode === "2_weeks"
                     ? "bg-white text-primary shadow-xs font-bold"
                     : "text-slate-600 hover:text-slate-900"
@@ -292,7 +320,7 @@ export function PeriodicCreateModal({
               <button
                 type="button"
                 onClick={() => setSpanMode("3_weeks")}
-                className={`py-1.5 px-2 rounded text-xs font-semibold transition-all cursor-pointer text-center ${
+                className={`py-1.5 px-1.5 rounded text-xs font-semibold transition-all cursor-pointer text-center ${
                   spanMode === "3_weeks"
                     ? "bg-white text-primary shadow-xs font-bold"
                     : "text-slate-600 hover:text-slate-900"
@@ -302,14 +330,25 @@ export function PeriodicCreateModal({
               </button>
               <button
                 type="button"
-                onClick={() => setSpanMode(reportType === "monthly" ? "month" : "custom_dates")}
-                className={`py-1.5 px-2 rounded text-xs font-semibold transition-all cursor-pointer text-center ${
-                  spanMode === "custom_dates" || spanMode === "month"
+                onClick={() => setSpanMode("month")}
+                className={`py-1.5 px-1.5 rounded text-xs font-semibold transition-all cursor-pointer text-center ${
+                  spanMode === "month"
                     ? "bg-white text-primary shadow-xs font-bold"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                {reportType === "monthly" ? "Theo tháng" : "Tùy chọn ngày"}
+                Theo tháng
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpanMode("custom_dates")}
+                className={`py-1.5 px-1.5 rounded text-xs font-semibold transition-all cursor-pointer text-center ${
+                  spanMode === "custom_dates"
+                    ? "bg-white text-primary shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Tùy chọn ngày
               </button>
             </div>
           </div>
@@ -491,6 +530,20 @@ export function PeriodicCreateModal({
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-1.5 pb-1">
                 <span className="text-[11px] text-slate-500 font-medium">Nhanh:</span>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset("this_month")}
+                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                >
+                  Tháng này
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset("last_month")}
+                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                >
+                  Tháng trước
+                </button>
                 <button
                   type="button"
                   onClick={() => handleApplyPreset(14)}
