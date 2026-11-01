@@ -1,6 +1,9 @@
 import ExcelJS from "exceljs";
 import type { MarketingPostRow, MarketingEventRow } from "@/lib/report-data";
 import { formatReportDate } from "@/lib/admin-report-export";
+import type { MarketingLeadItem } from "@/lib/marketing-types";
+import { LEAD_SOURCE_LABELS, LEAD_STATUS_LABELS, HATICO_BRANCHES } from "@/lib/marketing-types";
+import { getMarketingLeadsAction } from "@/app/actions-marketing";
 
 const PRIMARY = "FF0F2D59";
 const BORDER = "FF475569";
@@ -32,6 +35,9 @@ type ExportOptions = {
   branchName?: string;
   posts: MarketingPostRow[];
   events: MarketingEventRow[];
+  customers?: MarketingLeadItem[];
+  startDate?: string;
+  endDate?: string;
 };
 
 export async function downloadMarketingReportExcel(filename: string, options: ExportOptions) {
@@ -341,6 +347,157 @@ export async function downloadMarketingReportExcel(filename: string, options: Ex
       dataRow.getCell(1).alignment = { vertical: "top", horizontal: "center", wrapText: true };
     });
   }
+
+  // --- SHEET 3: DANH SÁCH KHÁCH HÀNG (NẾU CÓ HOẶC TRUY VẤN THEO KỲ) ---
+  let customerList: MarketingLeadItem[] = options.customers || [];
+  if (customerList.length === 0) {
+    try {
+      const dates = posts.map((p) => p.report_date).filter(Boolean).sort();
+      const startDate = options.startDate || dates[0];
+      const endDate = options.endDate || dates[dates.length - 1];
+      if (startDate && endDate) {
+        const res = await getMarketingLeadsAction(undefined, undefined, startDate, endDate);
+        if (res && "data" in res && Array.isArray(res.data)) {
+          customerList = res.data;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch customer leads for report export", e);
+    }
+  }
+
+  if (customerList.length > 0) {
+    const custSheet = workbook.addWorksheet("Danh sách khách hàng", {
+      views: [{ showGridLines: true }],
+    });
+
+    custSheet.columns = [
+      { key: "stt", width: 6 },
+      { key: "lead_date", width: 14 },
+      { key: "full_name", width: 22 },
+      { key: "phone", width: 16 },
+      { key: "address", width: 20 },
+      { key: "demand", width: 26 },
+      { key: "source", width: 18 },
+      { key: "branch", width: 22 },
+      { key: "status", width: 18 },
+      { key: "order_id", width: 16 },
+      { key: "assigned", width: 18 },
+      { key: "notes", width: 26 },
+    ];
+
+    const addMergedLineCust = (
+      text: string,
+      style: Partial<ExcelJS.Style>,
+      endCol: string = "L"
+    ) => {
+      const row = custSheet.addRow([text]);
+      const n = row.number;
+      custSheet.mergeCells(`A${n}:${endCol}${n}`);
+      styleRow(row, style);
+      return n;
+    };
+
+    const cLine1 = addMergedLineCust("CÔNG TY CỔ PHẦN XNK QUỐC TẾ HATICO", {
+      font: { bold: true, size: 11 },
+      alignment: { vertical: "middle" },
+    });
+    custSheet.getRow(cLine1).height = 24;
+
+    const cLine2 = addMergedLineCust(
+      `DANH SÁCH KHÁCH HÀNG TIẾP NHẬN MARKETING (${customerList.length} KHÁCH HÀNG)`,
+      {
+        font: { bold: true, size: 14, color: { argb: PRIMARY } },
+        alignment: { horizontal: "center", vertical: "middle" },
+      }
+    );
+    custSheet.getRow(cLine2).height = 28;
+
+    const cLine3 = addMergedLineCust(
+      `Kỳ báo cáo: ${PERIOD_LABELS[period]}  |  Phạm vi: ${branchName || "Toàn hệ thống"}  |  Người lập: ${staffName}`,
+      {
+        font: { italic: true, size: 9.5, color: { argb: "FF475569" } },
+        alignment: { horizontal: "center", vertical: "middle" },
+      }
+    );
+    custSheet.getRow(cLine3).height = 20;
+
+    custSheet.addRow([]); // Blank spacer
+
+    const custHeaderRow = custSheet.addRow([
+      "STT",
+      "Ngày nhận",
+      "Họ và tên khách hàng",
+      "Số điện thoại",
+      "Tỉnh / Khu vực",
+      "Nhu cầu quan tâm",
+      "Nguồn tiếp cận",
+      "Chi nhánh xử lý",
+      "Trạng thái",
+      "Mã đơn hàng",
+      "Nhân sự phụ trách",
+      "Ghi chú",
+    ]);
+    styleRow(custHeaderRow, {
+      font: { bold: true, color: { argb: "FFFFFFFF" }, size: 9.5 },
+      fill: { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } },
+      border: thinBorder,
+      alignment: { horizontal: "center", vertical: "middle" },
+    });
+    custHeaderRow.height = 24;
+
+    customerList.forEach((c, idx) => {
+      const bName =
+        HATICO_BRANCHES.find((b) => b.id === c.handler_branch_id || b.id === c.branch_id)?.name ||
+        c.handler_branch_name ||
+        c.branch_name ||
+        "—";
+      const srcName = LEAD_SOURCE_LABELS[c.source] || c.source || "—";
+      const stName = LEAD_STATUS_LABELS[c.status] || c.status || "Mới quan tâm";
+
+      const cRow = custSheet.addRow([
+        idx + 1,
+        formatReportDate(c.lead_date),
+        c.full_name || "—",
+        c.phone ? String(c.phone) : "—",
+        c.address || "—",
+        c.demand || "—",
+        srcName,
+        bName,
+        stName,
+        c.order_id || "—",
+        c.assigned_staff_name || "—",
+        c.notes || "",
+      ]);
+
+      cRow.getCell(4).numFmt = "@"; // Text format for phone
+
+      styleRow(cRow, {
+        font: { size: 9.5 },
+        fill:
+          idx % 2 === 1
+            ? { type: "pattern", pattern: "solid", fgColor: { argb: ALT_FILL } }
+            : undefined,
+        border: thinBorder,
+        alignment: { vertical: "middle" },
+      });
+
+      cRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+      cRow.getCell(2).alignment = { horizontal: "center", vertical: "middle" };
+      cRow.getCell(4).alignment = { horizontal: "center", vertical: "middle" };
+      cRow.getCell(7).alignment = { horizontal: "center", vertical: "middle" };
+      cRow.getCell(9).alignment = { horizontal: "center", vertical: "middle" };
+      cRow.getCell(10).alignment = { horizontal: "center", vertical: "middle" };
+
+      if (c.status === "closed") {
+        cRow.getCell(9).font = { bold: true, color: { argb: "FF059669" }, size: 9.5 };
+      } else if (c.status === "converted") {
+        cRow.getCell(9).font = { bold: true, color: { argb: "FF1E3A8A" }, size: 9.5 };
+      }
+      cRow.height = 21;
+    });
+  }
+
   // --- DOWNLOAD ---
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {

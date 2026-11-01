@@ -1,3 +1,5 @@
+import type { MarketingLeadItem } from "./marketing-types";
+
 export type PeriodicReportType = "weekly" | "monthly" | "custom";
 export type PeriodicReportStatus = "draft" | "closed";
 
@@ -145,6 +147,8 @@ export interface PeriodicReportDataSnapshot {
   adComparison: AdComparisonSummary;
   branchResults: BranchResultRow[];
   totalSystemBranch: BranchResultRow;
+  customers?: MarketingLeadItem[];
+  leads?: MarketingLeadItem[];
 }
 
 export interface ReportHistoryItem {

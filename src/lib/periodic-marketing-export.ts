@@ -1,6 +1,14 @@
 import ExcelJS from "exceljs";
 import { MarketingPeriodicReport } from "./periodic-marketing-types";
-import { HATICO_BRANCHES, isPostInBranch, getBranchPIC } from "./marketing-types";
+import {
+  HATICO_BRANCHES,
+  isPostInBranch,
+  getBranchPIC,
+  MarketingLeadItem,
+  LEAD_SOURCE_LABELS,
+  LEAD_STATUS_LABELS,
+} from "./marketing-types";
+import { getMarketingLeadsAction } from "@/app/actions-marketing";
 
 const NAVY = "FF0F2D59";
 const NAVY_LIGHT = "FF1E3A8A";
@@ -28,7 +36,10 @@ function formatDate(dateStr: string): string {
   return dateStr;
 }
 
-export async function exportPeriodicMarketingReportExcel(report: MarketingPeriodicReport) {
+export async function exportPeriodicMarketingReportExcel(
+  report: MarketingPeriodicReport,
+  customerList?: MarketingLeadItem[]
+) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Hatico Manager";
   workbook.created = new Date();
@@ -46,6 +57,29 @@ export async function exportPeriodicMarketingReportExcel(report: MarketingPeriod
     }
   } catch (e) {
     console.warn("Could not load logo for export", e);
+  }
+
+  // Khách hàng / Leads trong kỳ báo cáo
+  let customers: MarketingLeadItem[] =
+    report.data.customers ||
+    (report.data as any).leads ||
+    customerList ||
+    [];
+
+  if ((!customers || customers.length === 0) && report.startDate && report.endDate) {
+    try {
+      const res = await getMarketingLeadsAction(
+        undefined,
+        report.branchId === "all" ? undefined : report.branchId,
+        report.startDate,
+        report.endDate
+      );
+      if (res && "data" in res && Array.isArray(res.data)) {
+        customers = res.data;
+      }
+    } catch (e) {
+      console.warn("Could not fetch customer leads for periodic export", e);
+    }
   }
 
   const kpis = report.data.kpis;
@@ -1131,9 +1165,401 @@ export async function exportPeriodicMarketingReportExcel(report: MarketingPeriod
     ws3.getRow(r3).height = 21;
   });
 
+  // ============================================================================
+  // TAB 4: 👥 DANH SÁCH KHÁCH HÀNG & TIẾP NHẬN XỬ LÝ (LEADS)
+  // ============================================================================
+  const wsCust = workbook.addWorksheet("Danh sách khách hàng", {
+    views: [{ showGridLines: true }],
+  });
+
+  wsCust.columns = [
+    { width: 4 },  // A: Spacer
+    { width: 6 },  // B: STT
+    { width: 14 }, // C: Ngày nhận
+    { width: 24 }, // D: Họ và tên khách hàng
+    { width: 16 }, // E: Số điện thoại
+    { width: 20 }, // F: Tỉnh / Khu vực
+    { width: 30 }, // G: Nhu cầu quan tâm
+    { width: 18 }, // H: Nguồn tiếp cận
+    { width: 16 }, // I: Loại nguồn (Tự nhiên / Ads)
+    { width: 22 }, // J: Chi nhánh nguồn
+    { width: 22 }, // K: Chi nhánh xử lý
+    { width: 18 }, // L: Trạng thái
+    { width: 16 }, // M: Mã đơn hàng
+    { width: 20 }, // N: Người phụ trách
+    { width: 28 }, // O: Ghi chú
+  ];
+
+  renderSheetHeader(
+    wsCust,
+    `DANH SÁCH CHI TIẾT KHÁCH HÀNG & TIẾP NHẬN XỬ LÝ (${customers.length} KHÁCH HÀNG)`,
+    "O"
+  );
+
+  // PHẦN I: TỔNG HỢP CHỈ SỐ KHÁCH HÀNG & CHUYỂN ĐỔI
+  let rCust = 6;
+  wsCust.mergeCells(`B${rCust}:O${rCust}`);
+  const secH_cust1 = wsCust.getCell(`B${rCust}`);
+  secH_cust1.value = "PHẦN I. TỔNG HỢP CHỈ SỐ KHÁCH HÀNG TIẾP NHẬN (LEADS) & TỶ LỆ CHUYỂN ĐỔI";
+  secH_cust1.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+  secH_cust1.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+  secH_cust1.alignment = { vertical: "middle", indent: 1 };
+  wsCust.getRow(rCust).height = 25;
+
+  const totalCust = customers.length;
+  const consultedCust = customers.filter((c) =>
+    ["consulted", "discussing", "converted", "closed"].includes(c.status)
+  ).length;
+  const convertedCust = customers.filter((c) =>
+    ["converted", "closed"].includes(c.status)
+  ).length;
+  const closedCust = customers.filter((c) => c.status === "closed").length;
+  const noDemandCust = customers.filter((c) => c.status === "no_demand").length;
+
+  rCust++;
+  wsCust.mergeCells(`B${rCust}:E${rCust}`);
+  wsCust.getCell(`B${rCust}`).value = "Chỉ số hiệu quả chuyển đổi Leads";
+  wsCust.mergeCells(`F${rCust}:G${rCust}`);
+  wsCust.getCell(`F${rCust}`).value = "Số lượng khách";
+  wsCust.mergeCells(`H${rCust}:I${rCust}`);
+  wsCust.getCell(`H${rCust}`).value = "Tỷ lệ % / Tổng";
+  wsCust.mergeCells(`J${rCust}:O${rCust}`);
+  wsCust.getCell(`J${rCust}`).value = "Diễn giải & Đánh giá ý nghĩa";
+
+  for (let c = 2; c <= 15; c++) {
+    const cell = wsCust.getCell(rCust, c);
+    cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF1E293B" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: SUBHEADER_FILL } };
+    cell.border = thinBorder;
+    cell.alignment = {
+      horizontal: c >= 6 && c <= 9 ? "center" : "left",
+      vertical: "middle",
+      indent: c === 2 ? 1 : 0,
+    };
+  }
+  wsCust.getRow(rCust).height = 23;
+
+  const leadSummaryRows = [
+    {
+      title: "1. Tổng khách hàng quan tâm (Total Leads)",
+      count: totalCust,
+      pct: "100.0%",
+      desc: `Toàn bộ khách hàng quan tâm đến từ các kênh và chi nhánh trong kỳ ${periodTitle}`,
+      isHighlight: false,
+    },
+    {
+      title: "2. Khách hàng đã được tư vấn & chăm sóc",
+      count: consultedCust,
+      pct: totalCust > 0 ? `${((consultedCust / totalCust) * 100).toFixed(1)}%` : "0.0%",
+      desc: "Khách hàng đã được nhân viên kinh doanh liên hệ trực tiếp để tư vấn sản phẩm/dịch vụ",
+      isHighlight: false,
+    },
+    {
+      title: "3. Khách hàng tiềm năng chuyển đổi thực tế (Converted)",
+      count: convertedCust,
+      pct: totalCust > 0 ? `${((convertedCust / totalCust) * 100).toFixed(1)}%` : "0.0%",
+      desc: "Khách hàng đồng ý nhận báo giá chi tiết, hẹn lái thử hoặc xem xe trực tiếp",
+      isHighlight: false,
+    },
+    {
+      title: "4. Khách hàng đã chốt đơn thành công (Closed Orders)",
+      count: closedCust,
+      pct: totalCust > 0 ? `${((closedCust / totalCust) * 100).toFixed(1)}%` : "0.0%",
+      desc: "Khách hàng đã ký hợp đồng mua bán hoặc hoàn tất đơn hàng trong kỳ",
+      isHighlight: true,
+    },
+    {
+      title: "5. Khách không có nhu cầu / Hủy liên hệ",
+      count: noDemandCust,
+      pct: totalCust > 0 ? `${((noDemandCust / totalCust) * 100).toFixed(1)}%` : "0.0%",
+      desc: "Khách gọi nhầm số, không bắt máy hoặc không có nhu cầu thực tế",
+      isHighlight: false,
+    },
+  ];
+
+  leadSummaryRows.forEach((rowItem, idx) => {
+    rCust++;
+    wsCust.mergeCells(`B${rCust}:E${rCust}`);
+    wsCust.getCell(`B${rCust}`).value = rowItem.title;
+
+    wsCust.mergeCells(`F${rCust}:G${rCust}`);
+    const countCell = wsCust.getCell(`F${rCust}`);
+    countCell.value = rowItem.count;
+    countCell.alignment = { horizontal: "center", vertical: "middle" };
+
+    wsCust.mergeCells(`H${rCust}:I${rCust}`);
+    const pctCell = wsCust.getCell(`H${rCust}`);
+    pctCell.value = rowItem.pct;
+    pctCell.alignment = { horizontal: "center", vertical: "middle" };
+
+    wsCust.mergeCells(`J${rCust}:O${rCust}`);
+    const descCell = wsCust.getCell(`J${rCust}`);
+    descCell.value = rowItem.desc;
+    descCell.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+
+    const isEven = idx % 2 === 0;
+    const rowBg = rowItem.isHighlight ? "FFF0FDF4" : isEven ? "FFFFFFFF" : ALT_ROW_FILL;
+
+    for (let c = 2; c <= 15; c++) {
+      const cell = wsCust.getCell(rCust, c);
+      cell.font = {
+        name: "Segoe UI",
+        size: 9.5,
+        bold: Boolean(rowItem.isHighlight || c === 2),
+        color: { argb: rowItem.isHighlight ? ACCENT_GREEN : "FF0F172A" },
+      };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
+      cell.border = thinBorder;
+    }
+    wsCust.getRow(rCust).height = 22;
+  });
+
+  // PHẦN II: BẢNG CHI TIẾT DANH SÁCH KHÁCH HÀNG & PHÂN BỔ CHI NHÁNH
+  rCust += 2;
+  wsCust.mergeCells(`B${rCust}:O${rCust}`);
+  const secH_cust2 = wsCust.getCell(`B${rCust}`);
+  secH_cust2.value = `PHẦN II. BẢNG CHI TIẾT DANH SÁCH KHÁCH HÀNG & PHÂN BỔ CHI NHÁNH (${customers.length} KHÁCH HÀNG)`;
+  secH_cust2.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+  secH_cust2.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+  secH_cust2.alignment = { vertical: "middle", indent: 1 };
+  wsCust.getRow(rCust).height = 25;
+
+  rCust++;
+  const custTableCols = [
+    "STT",
+    "Ngày nhận",
+    "Họ và tên khách hàng",
+    "Số điện thoại",
+    "Tỉnh / Khu vực",
+    "Nhu cầu quan tâm",
+    "Nguồn tiếp cận",
+    "Loại nguồn",
+    "Chi nhánh nguồn",
+    "Chi nhánh xử lý",
+    "Trạng thái",
+    "Mã đơn hàng",
+    "Người phụ trách",
+    "Ghi chú",
+  ];
+
+  custTableCols.forEach((col, idx) => {
+    const c = wsCust.getCell(rCust, idx + 2);
+    c.value = col;
+    c.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFFFFFFF" } };
+    c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY_LIGHT } };
+    c.border = thinBorder;
+    c.alignment = { horizontal: "center", vertical: "middle" };
+  });
+  wsCust.getRow(rCust).height = 24;
+
+  if (customers.length === 0) {
+    rCust++;
+    wsCust.mergeCells(`B${rCust}:O${rCust}`);
+    const emptyCell = wsCust.getCell(`B${rCust}`);
+    emptyCell.value = `Không có dữ liệu khách hàng phát sinh trong khoảng thời gian này (${formatDate(report.startDate)} – ${formatDate(report.endDate)}).`;
+    emptyCell.font = { name: "Segoe UI", size: 10, italic: true, color: { argb: "FF64748B" } };
+    emptyCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ALT_ROW_FILL } };
+    emptyCell.border = thinBorder;
+    emptyCell.alignment = { horizontal: "center", vertical: "middle" };
+    wsCust.getRow(rCust).height = 30;
+  } else {
+    // Phân nhóm khách hàng theo từng chi nhánh
+    const branchCustomerGroups: {
+      branchId: string;
+      branchName: string;
+      customers: typeof customers;
+    }[] = HATICO_BRANCHES.map((b) => {
+      const bList = customers.filter((c) => {
+        if (c.branch_id === b.id || c.handler_branch_id === b.id) return true;
+        const bLow = b.name.toLowerCase();
+        const sLow = b.shortCode.toLowerCase();
+        const cbLow = (c.branch_name || "").toLowerCase();
+        const chLow = (c.handler_branch_name || "").toLowerCase();
+        return (
+          cbLow.includes(sLow) ||
+          cbLow.includes(bLow) ||
+          chLow.includes(sLow) ||
+          chLow.includes(bLow)
+        );
+      });
+      return {
+        branchId: b.id,
+        branchName: b.name,
+        customers: bList,
+      };
+    }).filter((g) => g.customers.length > 0);
+
+    const matchedCustIds = new Set(
+      branchCustomerGroups.flatMap((g) => g.customers.map((c) => c.id))
+    );
+    const unassigned = customers.filter((c) => !matchedCustIds.has(c.id));
+    if (unassigned.length > 0) {
+      branchCustomerGroups.push({
+        branchId: "other",
+        branchName: "Khác / Chưa phân bổ",
+        customers: unassigned,
+      });
+    }
+
+    let globalCustIdx = 0;
+
+    branchCustomerGroups.forEach((group) => {
+      rCust++;
+      wsCust.mergeCells(`B${rCust}:O${rCust}`);
+      const bHeader = wsCust.getCell(`B${rCust}`);
+      bHeader.value = `CHI NHÁNH: ${group.branchName.toUpperCase()} (${group.customers.length} KHÁCH HÀNG)`;
+      bHeader.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF0F172A" } };
+      bHeader.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+      bHeader.border = thinBorder;
+      bHeader.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+      wsCust.getRow(rCust).height = 23;
+
+      group.customers.forEach((cust, cIdx) => {
+        rCust++;
+        globalCustIdx++;
+        const rowBg = cIdx % 2 === 0 ? "FFFFFFFF" : ALT_ROW_FILL;
+
+        const bSrcName =
+          HATICO_BRANCHES.find((b) => b.id === cust.branch_id)?.name ||
+          cust.branch_name ||
+          "—";
+        const bHdlName =
+          HATICO_BRANCHES.find((b) => b.id === cust.handler_branch_id)?.name ||
+          cust.handler_branch_name ||
+          "—";
+        const srcLabel = LEAD_SOURCE_LABELS[cust.source] || cust.source || "—";
+        const srcTypeLabel =
+          cust.source_type === "ads" ? "Quảng cáo (Ads)" : "Tự nhiên (Organic)";
+        const statusLabel =
+          LEAD_STATUS_LABELS[cust.status] || cust.status || "Mới quan tâm";
+
+        wsCust.getCell(`B${rCust}`).value = globalCustIdx;
+        wsCust.getCell(`C${rCust}`).value = formatDate(cust.lead_date);
+        wsCust.getCell(`D${rCust}`).value = cust.full_name || "—";
+
+        // Số điện thoại - định dạng text để giữ nguyên số 0 đầu tiên
+        const pCell = wsCust.getCell(`E${rCust}`);
+        pCell.value = cust.phone ? String(cust.phone) : "—";
+        pCell.numFmt = "@";
+
+        wsCust.getCell(`F${rCust}`).value = cust.address || "—";
+        wsCust.getCell(`G${rCust}`).value = cust.demand || "—";
+        wsCust.getCell(`H${rCust}`).value = srcLabel;
+        wsCust.getCell(`I${rCust}`).value = srcTypeLabel;
+        wsCust.getCell(`J${rCust}`).value = bSrcName;
+        wsCust.getCell(`K${rCust}`).value = bHdlName;
+
+        const stCell = wsCust.getCell(`L${rCust}`);
+        stCell.value = statusLabel;
+
+        wsCust.getCell(`M${rCust}`).value = cust.order_id || "—";
+        wsCust.getCell(`N${rCust}`).value = cust.assigned_staff_name || "—";
+        wsCust.getCell(`O${rCust}`).value = cust.notes || "";
+
+        for (let c = 2; c <= 15; c++) {
+          const cell = wsCust.getCell(rCust, c);
+          cell.font = { name: "Segoe UI", size: 9.5, color: { argb: "FF0F172A" } };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowBg } };
+          cell.border = thinBorder;
+
+          if (
+            c === 2 ||
+            c === 3 ||
+            c === 5 ||
+            c === 8 ||
+            c === 9 ||
+            c === 12 ||
+            c === 13
+          ) {
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+          } else {
+            cell.alignment = { horizontal: "left", vertical: "middle", indent: 0.5 };
+          }
+        }
+
+        // Định dạng trạng thái nổi bật
+        if (cust.status === "closed") {
+          stCell.font = {
+            name: "Segoe UI",
+            size: 9.5,
+            bold: true,
+            color: { argb: ACCENT_GREEN },
+          };
+        } else if (cust.status === "converted") {
+          stCell.font = {
+            name: "Segoe UI",
+            size: 9.5,
+            bold: true,
+            color: { argb: NAVY_LIGHT },
+          };
+        } else if (cust.status === "no_demand") {
+          stCell.font = { name: "Segoe UI", size: 9.5, color: { argb: "FF94A3B8" } };
+        }
+
+        wsCust.getRow(rCust).height = 21;
+      });
+
+      // Dòng tổng kết chi nhánh
+      rCust++;
+      wsCust.mergeCells(`B${rCust}:C${rCust}`);
+      wsCust.getCell(`B${rCust}`).value = `Cộng chi nhánh ${group.branchName}:`;
+
+      wsCust.getCell(`D${rCust}`).value = `${group.customers.length} khách hàng`;
+      wsCust.getCell(`L${rCust}`).value = `${
+        group.customers.filter((c) => c.status === "closed").length
+      } đơn chốt`;
+
+      for (let c = 2; c <= 15; c++) {
+        const cell = wsCust.getCell(rCust, c);
+        cell.font = { name: "Segoe UI", size: 9, bold: true, color: { argb: "FF0F172A" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: TOTAL_ROW_FILL } };
+        cell.border = thinBorder;
+        if (c === 2 || c === 4 || c === 12) {
+          cell.alignment = {
+            horizontal: c === 2 ? "left" : "center",
+            vertical: "middle",
+            indent: c === 2 ? 1 : 0,
+          };
+        }
+      }
+      wsCust.getRow(rCust).height = 22;
+    });
+
+    // Dòng tổng cộng hệ thống toàn bảng
+    rCust++;
+    wsCust.mergeCells(`B${rCust}:C${rCust}`);
+    const totSysHeader = wsCust.getCell(`B${rCust}`);
+    totSysHeader.value = "TỔNG CỘNG TOÀN HỆ THỐNG:";
+
+    const totCustCell = wsCust.getCell(`D${rCust}`);
+    totCustCell.value = `${customers.length} khách hàng`;
+
+    const totClosedCell = wsCust.getCell(`L${rCust}`);
+    totClosedCell.value = `${closedCust} đơn hàng chốt`;
+
+    for (let c = 2; c <= 15; c++) {
+      const cell = wsCust.getCell(rCust, c);
+      cell.font = {
+        name: "Segoe UI",
+        size: 10,
+        bold: true,
+        color: { argb: "FFFFFFFF" },
+      };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+      cell.border = thinBorder;
+      if (c === 2 || c === 4 || c === 12) {
+        cell.alignment = {
+          horizontal: c === 2 ? "left" : "center",
+          vertical: "middle",
+          indent: c === 2 ? 1 : 0,
+        };
+      }
+    }
+    wsCust.getRow(rCust).height = 25;
+  }
 
   // ============================================================================
-  // TAB 4: 🎯 QUẢNG CÁO & ĐÁNH GIÁ (ADS & EVALUATION)
+  // TAB 5: 🎯 QUẢNG CÁO & ĐÁNH GIÁ (ADS & EVALUATION)
   // ============================================================================
   const ws4 = workbook.addWorksheet("Quảng cáo & Đánh giá", {
     views: [{ showGridLines: true }],

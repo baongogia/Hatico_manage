@@ -1796,11 +1796,14 @@ export async function markStaffLate(
 function extractMarketingPostRows(reports: DailyReport[], period: CallReportPeriod = "all"): MarketingPostRow[] {
   const startDate = getPeriodStartDate(period);
   const rows: MarketingPostRow[] = [];
+  const seenIds = new Set<string>();
 
   for (const report of reports) {
     if (startDate && report.report_date < startDate) continue;
     const { marketingPosts } = splitReportItems(report.tasks_data || []);
     for (const post of marketingPosts) {
+      if (post.id && seenIds.has(post.id)) continue;
+      if (post.id) seenIds.add(post.id);
       rows.push({
         ...post,
         report_date: report.report_date,
@@ -1935,10 +1938,15 @@ export async function saveMarketingReports(params: {
   const supabase = createServiceClient();
   const now = new Date().toISOString();
 
-  const postEntries: MarketingPostEntry[] = params.posts
-    .filter((p) => p.title.trim())
-    .map((p) => ({
-      id: p.id || crypto.randomUUID(),
+  const seenPostIds = new Set<string>();
+  const postEntries: MarketingPostEntry[] = [];
+  for (const p of params.posts) {
+    if (!p.title.trim()) continue;
+    const postId = p.id || crypto.randomUUID();
+    if (seenPostIds.has(postId)) continue;
+    seenPostIds.add(postId);
+    postEntries.push({
+      id: postId,
       type: "marketing_post" as const,
       platform: p.platform,
       title: p.title.trim(),
@@ -1952,7 +1960,8 @@ export async function saveMarketingReports(params: {
       content_type: p.content_type,
       branch_id: p.branch_id || "e0462eae-7a2a-4e4d-a03b-ed9423871289",
       author_id: p.author_id,
-    }));
+    });
+  }
 
   const eventEntries: MarketingEventEntry[] = params.events
     .filter((e) => e.event_name.trim())

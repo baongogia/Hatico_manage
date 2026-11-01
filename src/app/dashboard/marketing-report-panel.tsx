@@ -74,12 +74,37 @@ type MarketingReportPanelProps = {
 };
 
 function toEditablePostRows(posts: MarketingPostRow[]): EditablePostRow[] {
-  return posts.map((post, i) => ({
-    ...post,
-    id: post.id,
-    branch_id: post.branch_id || HATICO_BRANCHES[0].id,
-    rowId: post.id || `${post.report_id}-${post.report_date}-${i}`,
-  }));
+  const seenPostIds = new Set<string>();
+  const seenRowIds = new Set<string>();
+  const result: EditablePostRow[] = [];
+
+  for (let i = 0; i < posts.length; i++) {
+    const post = posts[i];
+
+    // Bỏ qua các bài đăng bị trùng lặp id từ database
+    if (post.id && seenPostIds.has(post.id)) {
+      continue;
+    }
+    if (post.id) {
+      seenPostIds.add(post.id);
+    }
+
+    // Đảm bảo rowId luôn là duy nhất tuyệt đối để dùng làm React key
+    let rowId = post.id || `${post.report_id || "rep"}-${post.report_date}-${i}`;
+    if (seenRowIds.has(rowId)) {
+      rowId = `${rowId}-${i}`;
+    }
+    seenRowIds.add(rowId);
+
+    result.push({
+      ...post,
+      id: post.id || crypto.randomUUID(),
+      branch_id: post.branch_id || HATICO_BRANCHES[0].id,
+      rowId,
+    });
+  }
+
+  return result;
 }
 
 function toEditableEventRows(events: MarketingEventRow[]): EditableEventRow[] {
@@ -250,19 +275,31 @@ export function MarketingReportPanel({ profile }: MarketingReportPanelProps) {
   ) => {
     setPosts((prev) => {
       const savedPosts = toEditablePostRows(fetchedPosts);
+      const savedIds = new Set(savedPosts.map((sp) => sp.id).filter(Boolean));
+
       const unsaved = prev.filter((p) => {
         if (!p.rowId.startsWith("new-")) return false;
         if (!p.title.trim()) return false;
+        if (p.id && savedIds.has(p.id)) return false;
         const isSaved = savedPosts.some(
           (sp) =>
-            sp.title === p.title &&
-            sp.platform === p.platform &&
-            sp.link === p.link &&
+            sp.title.trim().toLowerCase() === p.title.trim().toLowerCase() &&
             sp.report_date === p.report_date,
         );
         return !isSaved;
       });
-      return [...savedPosts, ...unsaved];
+
+      const usedRowIds = new Set(savedPosts.map((sp) => sp.rowId));
+      const cleanUnsaved = unsaved.map((u) => {
+        let finalRowId = u.rowId;
+        if (usedRowIds.has(finalRowId)) {
+          finalRowId = `new-post-${crypto.randomUUID()}`;
+        }
+        usedRowIds.add(finalRowId);
+        return { ...u, rowId: finalRowId };
+      });
+
+      return [...savedPosts, ...cleanUnsaved];
     });
 
     setEvents(toEditableEventRows(fetchedEvents));

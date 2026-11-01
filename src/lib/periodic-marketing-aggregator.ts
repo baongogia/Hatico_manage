@@ -448,6 +448,8 @@ async function computePeriodMetrics(
     adComparison,
     branchResults,
     totalSystemBranch,
+    customers: leads,
+    leads,
   };
 }
 
@@ -512,6 +514,8 @@ export async function aggregatePeriodicReportDataByRange(
     adComparison: currentMetrics.adComparison,
     branchResults: currentMetrics.branchResults,
     totalSystemBranch: currentMetrics.totalSystemBranch,
+    customers: currentMetrics.customers,
+    leads: currentMetrics.leads,
   };
 }
 
