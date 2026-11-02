@@ -45,6 +45,7 @@ export async function downloadMarketingReportExcel(filename: string, options: Ex
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Hatico Manager";
+  workbook.calcProperties.fullCalcOnLoad = true;
 
   // 1. Fetch logo
   let imageId: number | undefined;
@@ -183,13 +184,17 @@ export async function downloadMarketingReportExcel(filename: string, options: Ex
   kpiHeaderRow.height = 22;
 
   kpiData.forEach((row, i) => {
-    const percent = row.target > 0 ? (row.actual / row.target) * 100 : 0;
+    const ratio = row.target > 0 ? row.actual / row.target : 0;
+    const percent = ratio * 100;
     const rowNum = 6 + i;
     const dataRow = kpiSheet.addRow([
       row.name,
       row.target,
       row.actual,
-      { formula: `IF(B${rowNum}>0, C${rowNum}/B${rowNum}, 0)` }
+      {
+        formula: `IF(B${rowNum}>0, C${rowNum}/B${rowNum}, 0)`,
+        result: ratio,
+      },
     ]);
     
     styleRow(dataRow, {

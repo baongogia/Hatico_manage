@@ -43,6 +43,7 @@ export async function exportPeriodicMarketingReportExcel(
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Hatico Manager";
   workbook.created = new Date();
+  workbook.calcProperties.fullCalcOnLoad = true;
 
   // Load logo - Hatico Logo (Original: 1944 x 809 => Tỷ lệ chuẩn 2.403 : 1)
   let imageId: number | undefined;
