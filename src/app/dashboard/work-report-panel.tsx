@@ -106,6 +106,13 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
   const [activeFormType, setActiveFormType] = useState<ActiveFormType>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showFormDetails, setShowFormDetails] = useState<boolean>(false);
+  const formContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollToForm = () => {
+    setTimeout(() => {
+      formContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  };
 
   // Quick NLP text entry drawer
   const [showQuickText, setShowQuickText] = useState<boolean>(false);
@@ -270,6 +277,8 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
       setClosedOrders(res.closedOrders);
       setContractValue(res.contractValue || "");
       setHasUnsavedChanges(false);
+      setActiveFormType(null);
+      setEditingId(null);
 
       if (res.updatedAt) {
         const timeStr = new Date(res.updatedAt).toLocaleTimeString("vi-VN", {
@@ -389,6 +398,8 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
       }
 
       setHasUnsavedChanges(false);
+      setActiveFormType(null);
+      setEditingId(null);
       const timeStr = new Date().toLocaleTimeString("vi-VN", {
         hour: "2-digit",
         minute: "2-digit",
@@ -447,6 +458,7 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
     setEditingId(null);
     setShowFormDetails(false);
     setShowSuggestions(false);
+    scrollToForm();
 
     if (type === "call") {
       setCallDraft({
@@ -492,6 +504,7 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
     setActiveFormType("call");
     setEditingId(c.id || c.customer_name);
     setShowFormDetails(Boolean(c.province || c.trailer_type || c.price_quote || c.follow_up_date));
+    const safeResult = (c.result === "quotation_sent" ? "quote_sent" : c.result) as CallOutcome;
     setCallDraft({
       customer_name: c.customer_name || "",
       phone: c.phone || "",
@@ -499,9 +512,10 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
       trailer_type: c.trailer_type || "",
       price_quote: c.price_quote || "",
       post_call_notes: c.post_call_notes || "",
-      result: (c.result as CallOutcome) || "interested",
+      result: safeResult || "interested",
       follow_up_date: c.follow_up_date || "",
     });
+    scrollToForm();
   };
 
   const openEditPost = (p: SalesPostActivity) => {
@@ -521,6 +535,7 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
       inquiries_count: p.inquiries_count ?? "",
       additional_links: p.additional_links || "",
     });
+    scrollToForm();
   };
 
   const openEditOther = (t: OtherWorkActivity) => {
@@ -534,6 +549,7 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
       result_obstacle: t.result_obstacle || "",
       due_date: t.due_date || "",
     });
+    scrollToForm();
   };
 
   const openEditVisit = (v: MarketVisitActivity) => {
@@ -553,6 +569,7 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
       next_action: v.next_action || "",
       expenses: v.expenses || "",
     });
+    scrollToForm();
   };
 
   // Add Draft into Daily Activity List
@@ -600,6 +617,7 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
         setEditingId(null);
       } else {
         setActiveFormType(null);
+        setEditingId(null);
       }
     } else if (activeFormType === "post") {
       const platformName =
@@ -637,6 +655,7 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
         setEditingId(null);
       } else {
         setActiveFormType(null);
+        setEditingId(null);
       }
     } else if (activeFormType === "other") {
       if (!otherDraft.task_name.trim()) {
@@ -675,6 +694,7 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
         setEditingId(null);
       } else {
         setActiveFormType(null);
+        setEditingId(null);
       }
     } else if (activeFormType === "visit") {
       if (!visitDraft.location_customer.trim()) {
@@ -713,6 +733,7 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
         setEditingId(null);
       } else {
         setActiveFormType(null);
+        setEditingId(null);
       }
     }
 
@@ -1327,7 +1348,10 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
 
         {/* 4. SHARED INLINE ENTRY PANEL */}
         {activeFormType && (
-          <div className="bg-white border border-[#E4E7EC] rounded-lg p-4 sm:p-5 space-y-3.5 shadow-xs animate-in fade-in duration-150">
+          <div
+            ref={formContainerRef}
+            className="bg-white border-2 border-[#17365D]/30 rounded-lg p-4 sm:p-5 space-y-3.5 shadow-md animate-in fade-in duration-150 scroll-mt-4"
+          >
             {/* Header with Outline Icon (No Emoji) */}
             <div className="flex items-center justify-between border-b border-[#E4E7EC] pb-2.5">
               <div className="flex items-center gap-2">
@@ -1374,20 +1398,36 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
                   )}
                 </span>
                 <span className="text-xs font-semibold text-[#202936]">
-                  {activeFormType === "call" && "Gọi / chăm sóc khách hàng"}
-                  {activeFormType === "post" && "Đăng bài bán hàng"}
-                  {activeFormType === "visit" && "Đi thị trường / Gặp khách"}
-                  {activeFormType === "other" && "Công việc khác"}
-                  {editingId && (
-                    <span className="text-[#667085] font-normal ml-1.5">(chỉnh sửa)</span>
+                  {editingId ? (
+                    <span className="flex items-center gap-1.5 text-[#17365D]">
+                      <span className="w-2 h-2 rounded-full bg-[#17365D]" />
+                      Chỉnh sửa:{" "}
+                      <span className="text-[#202936] font-bold">
+                        {activeFormType === "call" && (callDraft.customer_name || callDraft.phone || "Cuộc gọi")}
+                        {activeFormType === "post" && `Bài đăng ${selectedPlatformTab}`}
+                        {activeFormType === "visit" && (visitDraft.location_customer || "Đi thị trường")}
+                        {activeFormType === "other" && (otherDraft.task_name || "Công việc khác")}
+                      </span>
+                    </span>
+                  ) : (
+                    <>
+                      {activeFormType === "call" && "Gọi / chăm sóc khách hàng"}
+                      {activeFormType === "post" && "Đăng bài bán hàng"}
+                      {activeFormType === "visit" && "Đi thị trường / Gặp khách"}
+                      {activeFormType === "other" && "Công việc khác"}
+                    </>
                   )}
                 </span>
               </div>
 
               <button
                 type="button"
-                onClick={() => setActiveFormType(null)}
+                onClick={() => {
+                  setActiveFormType(null);
+                  setEditingId(null);
+                }}
                 className="text-[#667085] hover:text-[#202936] p-1 rounded hover:bg-[#F2F4F7] transition-colors cursor-pointer"
+                title="Đóng form"
               >
                 ✕
               </button>
@@ -1946,7 +1986,10 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
               <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
                 <button
                   type="button"
-                  onClick={() => setActiveFormType(null)}
+                  onClick={() => {
+                    setActiveFormType(null);
+                    setEditingId(null);
+                  }}
                   className="h-10 sm:h-8 px-4 sm:px-3 text-xs font-medium text-[#667085] hover:text-[#202936] hover:bg-[#F2F4F7] active:bg-[#E4E7EC] rounded-md transition-colors cursor-pointer touch-manipulation"
                 >
                   Hủy
@@ -1963,9 +2006,9 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
                 <button
                   type="button"
                   onClick={() => saveCurrentDraft(false)}
-                  className="h-10 sm:h-8 px-4 text-xs font-semibold text-white bg-[#17365D] hover:bg-[#112B4B] active:bg-[#0D223B] rounded-md shadow-xs transition-colors cursor-pointer touch-manipulation flex-1 sm:flex-initial text-center justify-center"
+                  className="h-10 sm:h-8 px-4 text-xs font-semibold text-white bg-[#17365D] hover:bg-[#112B4B] active:bg-[#0D223B] rounded-md shadow-xs transition-colors cursor-pointer touch-manipulation flex-1 sm:flex-initial text-center justify-center flex items-center gap-1.5"
                 >
-                  {editingId ? "Cập nhật" : "Lưu vào danh sách"}
+                  {editingId ? "Cập nhật thay đổi" : "Lưu vào danh sách"}
                 </button>
               </div>
             </div>
@@ -2001,243 +2044,321 @@ export function WorkReportPanel({ profile }: WorkReportPanelProps) {
           ) : (
             <div className="divide-y divide-[#E4E7EC]">
               {/* Group 1: Calls */}
-              {calls.map((c, i) => (
-                <div
-                  key={c.id || i}
-                  className="p-3 sm:px-4 sm:py-3 flex items-start justify-between gap-3 hover:bg-[#F9FAFB] transition-colors"
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <span className="w-7 h-7 rounded bg-[#F2F4F7] text-[#17365D] flex items-center justify-center shrink-0 mt-0.5">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                        />
-                      </svg>
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <strong className="text-[#202936] font-semibold">
-                          {c.customer_name || c.phone}
-                        </strong>
-                        {c.phone && c.customer_name && (
-                          <span className="text-[#667085] font-mono text-[11px]">
-                            ({c.phone})
-                          </span>
-                        )}
-                        {c.province && (
-                          <span className="text-[#98A2B3] text-[11px]">· {c.province}</span>
-                        )}
-                        {c.trailer_type && (
-                          <span className="text-[11px] text-[#344054] bg-[#F2F4F7] px-1.5 py-0.2 rounded font-medium">
-                            Mooc {c.trailer_type}
-                          </span>
-                        )}
-                        {c.price_quote && (
-                          <span className="text-[#17365D] text-[11px] font-semibold">
-                            Báo: {c.price_quote}
-                          </span>
-                        )}
-                      </div>
+              {calls.map((c, i) => {
+                const isEditing = editingId === (c.id || c.customer_name);
+                return (
+                  <div
+                    key={c.id || i}
+                    className={`p-3 sm:px-4 sm:py-3 flex items-start justify-between gap-3 transition-colors ${
+                      isEditing
+                        ? "bg-[#EDF2F8] border-l-4 border-l-[#17365D]"
+                        : "hover:bg-[#F9FAFB]"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <span className={`w-7 h-7 rounded flex items-center justify-center shrink-0 mt-0.5 ${
+                        isEditing ? "bg-[#17365D] text-white" : "bg-[#F2F4F7] text-[#17365D]"
+                      }`}>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                          />
+                        </svg>
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <strong className="text-[#202936] font-semibold">
+                            {c.customer_name || c.phone}
+                          </strong>
+                          {c.phone && c.customer_name && (
+                            <span className="text-[#667085] font-mono text-[11px]">
+                              ({c.phone})
+                            </span>
+                          )}
+                          {c.province && (
+                            <span className="text-[#98A2B3] text-[11px]">· {c.province}</span>
+                          )}
+                          {c.trailer_type && (
+                            <span className="text-[11px] text-[#344054] bg-[#F2F4F7] px-1.5 py-0.2 rounded font-medium">
+                              Mooc {c.trailer_type}
+                            </span>
+                          )}
+                          {c.price_quote && (
+                            <span className="text-[#17365D] text-[11px] font-semibold">
+                              Báo: {c.price_quote}
+                            </span>
+                          )}
+                        </div>
 
-                      <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px]">
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-[#F2F4F7] text-[#344054]">
-                          {CALL_OUTCOMES.find((o) => o.value === c.result)?.label || c.result}
-                        </span>
-                        {c.post_call_notes && (
-                          <span className="text-[#667085]">{c.post_call_notes}</span>
-                        )}
-                        {c.follow_up_date && (
-                          <span className="text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded text-[10px] font-medium">
-                            Hẹn: {c.follow_up_date}
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px]">
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-[#F2F4F7] text-[#344054]">
+                            {CALL_OUTCOMES.find((o) => o.value === c.result)?.label || c.result}
                           </span>
-                        )}
+                          {c.post_call_notes && (
+                            <span className="text-[#667085]">{c.post_call_notes}</span>
+                          )}
+                          {c.follow_up_date && (
+                            <span className="text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded text-[10px] font-medium">
+                              Hẹn: {c.follow_up_date}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => openEditCall(c)}
-                      className="p-1 text-[#667085] hover:text-[#17365D] hover:bg-[#F2F4F7] rounded cursor-pointer"
-                      title="Sửa"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteCall(c.id || c.customer_name)}
-                      className="p-1 text-[#667085] hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                      title="Xóa"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isEditing && (
+                        <span className="text-[10px] font-semibold text-[#17365D] bg-white border border-[#17365D]/30 px-1.5 py-0.5 rounded shrink-0 hidden min-[400px]:inline">
+                          Đang sửa ✍️
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openEditCall(c)}
+                        className={`p-1 rounded cursor-pointer transition-colors ${
+                          isEditing
+                            ? "text-[#17365D] bg-white shadow-2xs font-bold ring-1 ring-[#17365D]/30"
+                            : "text-[#667085] hover:text-[#17365D] hover:bg-[#F2F4F7]"
+                        }`}
+                        title="Sửa"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteCall(c.id || c.customer_name)}
+                        className="p-1 text-[#667085] hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                        title="Xóa"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {/* Group 2: Posts */}
-              {posts.map((p, i) => (
-                <div
-                  key={p.id || i}
-                  className="p-3 sm:px-4 sm:py-3 flex items-start justify-between gap-3 hover:bg-[#F9FAFB] transition-colors"
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <span className="w-7 h-7 rounded bg-[#F2F4F7] text-[#17365D] flex items-center justify-center shrink-0 mt-0.5">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <strong className="text-[#202936] font-semibold">{p.platform}</strong>
-                        <span className="text-[#667085]">({p.quantity} bài)</span>
-                        {p.inquiries_count ? (
-                          <span className="text-[#027A48] bg-[#ECFDF3] px-1.5 py-0.2 rounded text-[10px] font-medium">
-                            {p.inquiries_count} khách hỏi
-                          </span>
-                        ) : null}
+              {posts.map((p, i) => {
+                const isEditing = editingId === (p.id || p.platform);
+                return (
+                  <div
+                    key={p.id || i}
+                    className={`p-3 sm:px-4 sm:py-3 flex items-start justify-between gap-3 transition-colors ${
+                      isEditing
+                        ? "bg-[#EDF2F8] border-l-4 border-l-[#17365D]"
+                        : "hover:bg-[#F9FAFB]"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <span className={`w-7 h-7 rounded flex items-center justify-center shrink-0 mt-0.5 ${
+                        isEditing ? "bg-[#17365D] text-white" : "bg-[#F2F4F7] text-[#17365D]"
+                      }`}>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <strong className="text-[#202936] font-semibold">{p.platform}</strong>
+                          <span className="text-[#667085]">({p.quantity} bài)</span>
+                          {p.inquiries_count ? (
+                            <span className="text-[#027A48] bg-[#ECFDF3] px-1.5 py-0.2 rounded text-[10px] font-medium">
+                              {p.inquiries_count} khách hỏi
+                            </span>
+                          ) : null}
+                        </div>
+                        {p.link_or_desc && (
+                          <div className="text-[11px] text-[#667085] mt-1">{p.link_or_desc}</div>
+                        )}
                       </div>
-                      {p.link_or_desc && (
-                        <div className="text-[11px] text-[#667085] mt-1">{p.link_or_desc}</div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isEditing && (
+                        <span className="text-[10px] font-semibold text-[#17365D] bg-white border border-[#17365D]/30 px-1.5 py-0.5 rounded shrink-0 hidden min-[400px]:inline">
+                          Đang sửa ✍️
+                        </span>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => openEditPost(p)}
+                        className={`p-1 rounded cursor-pointer transition-colors ${
+                          isEditing
+                            ? "text-[#17365D] bg-white shadow-2xs font-bold ring-1 ring-[#17365D]/30"
+                            : "text-[#667085] hover:text-[#17365D] hover:bg-[#F2F4F7]"
+                        }`}
+                        title="Sửa"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deletePost(p.id || p.platform)}
+                        className="p-1 text-[#667085] hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                        title="Xóa"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => openEditPost(p)}
-                      className="p-1 text-[#667085] hover:text-[#17365D] hover:bg-[#F2F4F7] rounded cursor-pointer"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deletePost(p.id || p.platform)}
-                      className="p-1 text-[#667085] hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
 
               {/* Group 3: Visits */}
-              {visits.map((v, i) => (
-                <div
-                  key={v.id || i}
-                  className="p-3 sm:px-4 sm:py-3 flex items-start justify-between gap-3 hover:bg-[#F9FAFB] transition-colors"
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <span className="w-7 h-7 rounded bg-[#F2F4F7] text-[#17365D] flex items-center justify-center shrink-0 mt-0.5">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      </svg>
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <strong className="text-[#202936] font-semibold">{v.location_customer}</strong>
-                        {v.customers_visited_count && v.customers_visited_count > 1 && (
-                          <span className="text-[#667085] text-[11px]">
-                            ({v.customers_visited_count} khách gặp)
-                          </span>
-                        )}
-                        {v.expenses && (
-                          <span className="text-[#667085] text-[11px]">· Chi phí: {v.expenses}</span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-[#667085] mt-1">
-                        Kết quả: {v.outcome}
-                        {v.next_action && <span className="text-[#98A2B3]"> · Tiếp: {v.next_action}</span>}
+              {visits.map((v, i) => {
+                const isEditing = editingId === (v.id || v.location_customer);
+                return (
+                  <div
+                    key={v.id || i}
+                    className={`p-3 sm:px-4 sm:py-3 flex items-start justify-between gap-3 transition-colors ${
+                      isEditing
+                        ? "bg-[#EDF2F8] border-l-4 border-l-[#17365D]"
+                        : "hover:bg-[#F9FAFB]"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <span className={`w-7 h-7 rounded flex items-center justify-center shrink-0 mt-0.5 ${
+                        isEditing ? "bg-[#17365D] text-white" : "bg-[#F2F4F7] text-[#17365D]"
+                      }`}>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        </svg>
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <strong className="text-[#202936] font-semibold">{v.location_customer}</strong>
+                          {v.customers_visited_count && v.customers_visited_count > 1 && (
+                            <span className="text-[#667085] text-[11px]">
+                              ({v.customers_visited_count} khách gặp)
+                            </span>
+                          )}
+                          {v.expenses && (
+                            <span className="text-[#667085] text-[11px]">· Chi phí: {v.expenses}</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-[#667085] mt-1">
+                          Kết quả: {v.outcome}
+                          {v.next_action && <span className="text-[#98A2B3]"> · Tiếp: {v.next_action}</span>}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => openEditVisit(v)}
-                      className="p-1 text-[#667085] hover:text-[#17365D] hover:bg-[#F2F4F7] rounded cursor-pointer"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteVisit(v.id || v.location_customer)}
-                      className="p-1 text-[#667085] hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isEditing && (
+                        <span className="text-[10px] font-semibold text-[#17365D] bg-white border border-[#17365D]/30 px-1.5 py-0.5 rounded shrink-0 hidden min-[400px]:inline">
+                          Đang sửa ✍️
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openEditVisit(v)}
+                        className={`p-1 rounded cursor-pointer transition-colors ${
+                          isEditing
+                            ? "text-[#17365D] bg-white shadow-2xs font-bold ring-1 ring-[#17365D]/30"
+                            : "text-[#667085] hover:text-[#17365D] hover:bg-[#F2F4F7]"
+                        }`}
+                        title="Sửa"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteVisit(v.id || v.location_customer)}
+                        className="p-1 text-[#667085] hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                        title="Xóa"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {/* Group 4: Other Work */}
-              {otherTasks.map((t, i) => (
-                <div
-                  key={t.id || i}
-                  className="p-3 sm:px-4 sm:py-3 flex items-start justify-between gap-3 hover:bg-[#F9FAFB] transition-colors"
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <span className="w-7 h-7 rounded bg-[#F2F4F7] text-[#17365D] flex items-center justify-center shrink-0 mt-0.5">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                      </svg>
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <strong className="text-[#202936] font-semibold">{t.task_name}</strong>
-                        {t.customer_name && (
-                          <span className="text-[#667085] text-[11px]">· Khách: {t.customer_name}</span>
+              {otherTasks.map((t, i) => {
+                const isEditing = editingId === (t.id || t.task_name);
+                return (
+                  <div
+                    key={t.id || i}
+                    className={`p-3 sm:px-4 sm:py-3 flex items-start justify-between gap-3 transition-colors ${
+                      isEditing
+                        ? "bg-[#EDF2F8] border-l-4 border-l-[#17365D]"
+                        : "hover:bg-[#F9FAFB]"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <span className={`w-7 h-7 rounded flex items-center justify-center shrink-0 mt-0.5 ${
+                        isEditing ? "bg-[#17365D] text-white" : "bg-[#F2F4F7] text-[#17365D]"
+                      }`}>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <strong className="text-[#202936] font-semibold">{t.task_name}</strong>
+                          {t.customer_name && (
+                            <span className="text-[#667085] text-[11px]">· Khách: {t.customer_name}</span>
+                          )}
+                          <span className="text-[10px] font-medium px-2 py-0.2 rounded bg-[#F2F4F7] text-[#344054]">
+                            {TASK_STATUS_OPTIONS.find((s) => s.value === t.status)?.label || t.status}
+                          </span>
+                        </div>
+                        {t.result_obstacle && (
+                          <div className="text-[11px] text-[#667085] mt-1">{t.result_obstacle}</div>
                         )}
-                        <span className="text-[10px] font-medium px-2 py-0.2 rounded bg-[#F2F4F7] text-[#344054]">
-                          {TASK_STATUS_OPTIONS.find((s) => s.value === t.status)?.label || t.status}
-                        </span>
                       </div>
-                      {t.result_obstacle && (
-                        <div className="text-[11px] text-[#667085] mt-1">{t.result_obstacle}</div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isEditing && (
+                        <span className="text-[10px] font-semibold text-[#17365D] bg-white border border-[#17365D]/30 px-1.5 py-0.5 rounded shrink-0 hidden min-[400px]:inline">
+                          Đang sửa ✍️
+                        </span>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => openEditOther(t)}
+                        className={`p-1 rounded cursor-pointer transition-colors ${
+                          isEditing
+                            ? "text-[#17365D] bg-white shadow-2xs font-bold ring-1 ring-[#17365D]/30"
+                            : "text-[#667085] hover:text-[#17365D] hover:bg-[#F2F4F7]"
+                        }`}
+                        title="Sửa"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteOther(t.id || t.task_name)}
+                        className="p-1 text-[#667085] hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                        title="Xóa"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => openEditOther(t)}
-                      className="p-1 text-[#667085] hover:text-[#17365D] hover:bg-[#F2F4F7] rounded cursor-pointer"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteOther(t.id || t.task_name)}
-                      className="p-1 text-[#667085] hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
