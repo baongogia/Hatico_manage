@@ -13,7 +13,12 @@ import {
   type MarketingEventEntry,
   type MarketingPostRow,
   type MarketingEventRow,
+  type SalesPostActivity,
+  type OtherWorkActivity,
+  type MarketVisitActivity,
+  type DailySummaryActivity,
   splitReportItems,
+  splitWorkReportItems,
   getPeriodStartDate,
   isSalesDepartment,
   isMarketingDepartment,
@@ -99,6 +104,12 @@ export type {
   MarketingEventEntry,
   MarketingPostRow,
   MarketingEventRow,
+  SalesPostActivity,
+  OtherWorkActivity,
+  MarketVisitActivity,
+  DailySummaryActivity,
+  WorkActivityItem,
+  WorkReportTotals,
 } from "@/lib/report-data";
 
 export interface DailyReport {
@@ -301,7 +312,7 @@ export async function getSessionUser() {
       .eq("id", userId)
       .maybeSingle();
 
-    if (data && data.role === "admin") {
+    if (data) {
       profile = data;
     }
   }
@@ -655,15 +666,17 @@ export async function saveCallReports(params: {
   const now = new Date().toISOString();
 
   const callEntries: CallReportEntry[] = params.calls
-    .filter((c) => c.customer_name.trim())
+    .filter((c) => c.customer_name && c.customer_name.trim())
     .map((c) => ({
       type: "call" as const,
       customer_name: c.customer_name.trim(),
-      phone: c.phone.trim(),
-      province: c.province.trim(),
-      trailer_type: c.trailer_type.trim(),
-      price_quote: c.price_quote.trim(),
-      post_call_notes: c.post_call_notes.trim(),
+      phone: (c.phone || "").trim(),
+      province: (c.province || "").trim(),
+      trailer_type: (c.trailer_type || "").trim(),
+      price_quote: (c.price_quote || "").trim(),
+      post_call_notes: (c.post_call_notes || "").trim(),
+      result: c.result,
+      follow_up_date: c.follow_up_date,
     }));
 
   const { data: existingReport } = await supabase
@@ -729,6 +742,574 @@ export async function saveCallReportsBatch(
     if (result.error) return { error: result.error };
   }
   return { success: true };
+}
+
+// -------------------------------------------------------------
+// BÁO CÁO CÔNG VIỆC (WORK REPORT) - NEW MODULE
+// -------------------------------------------------------------
+
+export interface WorkReportStaffItem {
+  id: string;
+  full_name: string;
+  role: string;
+  department_name?: string;
+  branch_id?: string;
+  branch_name?: string;
+}
+
+export interface WorkReportData {
+  reportId?: string;
+  staffId: string;
+  staffName: string;
+  branchName: string;
+  departmentName: string;
+  date: string;
+  calls: CallReportEntry[];
+  posts: SalesPostActivity[];
+  otherTasks: OtherWorkActivity[];
+  visits: MarketVisitActivity[];
+  dailySummary: string;
+  closedOrders?: number;
+  contractValue?: string;
+  status: "draft" | "submitted";
+  updatedAt?: string;
+}
+
+export async function verifyWorkReportStaffAccess(
+  sessionUser: Profile,
+  targetStaffId: string
+): Promise<{ allowed: boolean; targetStaff?: Profile; error?: string }> {
+  if (sessionUser.id === targetStaffId) {
+    return { allowed: true, targetStaff: sessionUser };
+  }
+
+  const supabase = createServiceClient();
+  const profileQuery = `
+    id,
+    full_name,
+    role,
+    department_id,
+    departments (
+      id,
+      name,
+      branch_id,
+      branches (
+        id,
+        name,
+        code
+      )
+    )
+  `;
+
+  const { data: targetProfile, error } = await supabase
+    .from("profiles")
+    .select(profileQuery)
+    .eq("id", targetStaffId)
+    .maybeSingle();
+
+  if (error || !targetProfile) {
+    return { allowed: false, error: "Không tìm thấy nhân viên" };
+  }
+
+  const deptData = targetProfile.departments as unknown as {
+    id: string;
+    name: string;
+    branch_id: string;
+    branches: { id: string; name: string; code: string } | null;
+  } | null;
+
+  const mappedTarget: Profile = {
+    id: targetProfile.id,
+    full_name: targetProfile.full_name,
+    role: targetProfile.role as Profile["role"],
+    department_id: targetProfile.department_id,
+    department: deptData
+      ? {
+          id: deptData.id,
+          branch_id: deptData.branch_id,
+          name: deptData.name,
+          branch: deptData.branches
+            ? {
+                id: deptData.branches.id,
+                name: deptData.branches.name,
+                code: deptData.branches.code,
+              }
+            : undefined,
+        }
+      : undefined,
+  };
+
+  if (sessionUser.role === "admin") {
+    return { allowed: true, targetStaff: mappedTarget };
+  }
+
+  if (sessionUser.role === "branch_director") {
+    const userBranchId = sessionUser.department?.branch_id;
+    const targetBranchId = mappedTarget.department?.branch_id;
+    if (userBranchId && targetBranchId && userBranchId === targetBranchId) {
+      return { allowed: true, targetStaff: mappedTarget };
+    }
+    return {
+      allowed: false,
+      error: "Bạn không có quyền quản lý nhân viên ngoài chi nhánh của mình.",
+    };
+  }
+
+  if (sessionUser.role === "department_manager") {
+    if (sessionUser.department_id === mappedTarget.department_id) {
+      return { allowed: true, targetStaff: mappedTarget };
+    }
+    return {
+      allowed: false,
+      error: "Bạn không có quyền quản lý nhân viên ngoài bộ phận của mình.",
+    };
+  }
+
+  return {
+    allowed: false,
+    error: "Nhân viên chỉ có thể xem và cập nhật báo cáo của chính mình.",
+  };
+}
+
+export async function getWorkReportStaffList(): Promise<
+  { staff: WorkReportStaffItem[]; currentStaffId: string } | { error: string }
+> {
+  const profile = await getSessionUser();
+  if (!profile) return { error: "Chưa đăng nhập" };
+
+  const supabase = createServiceClient();
+
+  if (profile.role === "employee") {
+    return {
+      staff: [
+        {
+          id: profile.id,
+          full_name: profile.full_name,
+          role: profile.role,
+          department_name: profile.department?.name,
+          branch_id: profile.department?.branch_id,
+          branch_name: profile.department?.branch?.name || "Hatico",
+        },
+      ],
+      currentStaffId: profile.id,
+    };
+  }
+
+  let query = supabase.from("profiles").select(`
+    id,
+    full_name,
+    role,
+    department_id,
+    departments (
+      id,
+      name,
+      branch_id,
+      branches (
+        id,
+        name,
+        code
+      )
+    )
+  `);
+
+  if (profile.role === "department_manager") {
+    query = query.eq("department_id", profile.department_id);
+  } else if (profile.role === "branch_director") {
+    const branchId = profile.department?.branch_id;
+    if (branchId) {
+      const { data: deptIds } = await supabase
+        .from("departments")
+        .select("id")
+        .eq("branch_id", branchId);
+      const ids = (deptIds || []).map((d) => d.id);
+      if (ids.length > 0) {
+        query = query.in("department_id", ids);
+      }
+    }
+  }
+
+  const { data: profiles, error } = await query;
+  if (error || !profiles) {
+    return { error: error?.message || "Lỗi tải danh sách nhân viên" };
+  }
+
+  const staffList: WorkReportStaffItem[] = profiles
+    .map((p) => {
+      const d = p.departments as unknown as {
+        name: string;
+        branch_id: string;
+        branches: { name: string } | null;
+      } | null;
+      return {
+        id: p.id,
+        full_name: p.full_name,
+        role: p.role,
+        department_name: d?.name,
+        branch_id: d?.branch_id,
+        branch_name: d?.branches?.name || "Chưa phân chi nhánh",
+      };
+    })
+    .sort((a, b) => {
+      const bComp = (a.branch_name || "").localeCompare(b.branch_name || "", "vi");
+      if (bComp !== 0) return bComp;
+      return a.full_name.localeCompare(b.full_name, "vi");
+    });
+
+  const hasSelf = staffList.some((s) => s.id === profile.id);
+  const currentStaffId = hasSelf ? profile.id : (staffList[0]?.id || profile.id);
+
+  return { staff: staffList, currentStaffId };
+}
+
+export async function getWorkReport(params: {
+  staffId?: string;
+  date: string;
+}): Promise<WorkReportData | { error: string }> {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return { error: "Chưa đăng nhập" };
+
+  const targetStaffId = params.staffId || sessionUser.id;
+  const access = await verifyWorkReportStaffAccess(sessionUser, targetStaffId);
+  if (!access.allowed || !access.targetStaff) {
+    return { error: access.error || "Không có quyền truy cập báo cáo nhân viên này" };
+  }
+
+  const staff = access.targetStaff;
+  const supabase = createServiceClient();
+
+  const { data: report, error } = await supabase
+    .from("daily_reports")
+    .select("*")
+    .eq("user_id", targetStaffId)
+    .eq("report_date", params.date)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching work report:", error);
+    return { error: error.message };
+  }
+
+  const { calls, posts, otherTasks, visits, summary } = splitWorkReportItems(
+    report?.tasks_data || []
+  );
+
+  return {
+    reportId: report?.id,
+    staffId: staff.id,
+    staffName: staff.full_name,
+    branchName: staff.department?.branch?.name || "Hatico",
+    departmentName: staff.department?.name || "Kinh doanh",
+    date: params.date,
+    calls,
+    posts,
+    otherTasks,
+    visits,
+    dailySummary: summary?.summary || "",
+    closedOrders: summary?.closed_orders,
+    contractValue: summary?.contract_value,
+    status: (report?.status as "draft" | "submitted") || "submitted",
+    updatedAt: report?.updated_at || report?.created_at,
+  };
+}
+
+export async function saveWorkReport(params: {
+  staffId?: string;
+  date: string;
+  calls: CallReportEntry[];
+  posts: SalesPostActivity[];
+  otherTasks: OtherWorkActivity[];
+  visits: MarketVisitActivity[];
+  dailySummary?: string;
+  closedOrders?: number;
+  contractValue?: string;
+  status?: "draft" | "submitted";
+}) {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return { error: "Chưa đăng nhập" };
+
+  const targetStaffId = params.staffId || sessionUser.id;
+  const access = await verifyWorkReportStaffAccess(sessionUser, targetStaffId);
+  if (!access.allowed) {
+    return { error: access.error || "Không có quyền lưu báo cáo cho nhân viên này" };
+  }
+
+  const supabase = createServiceClient();
+  const now = new Date().toISOString();
+
+  const { data: existingReport } = await supabase
+    .from("daily_reports")
+    .select("id, tasks_data")
+    .eq("user_id", targetStaffId)
+    .eq("report_date", params.date)
+    .maybeSingle();
+
+  const { legacyNonWork } = splitWorkReportItems(existingReport?.tasks_data || []);
+
+  const cleanCalls: CallReportEntry[] = (params.calls || [])
+    .filter((c) => (c.customer_name && c.customer_name.trim()) || (c.phone && c.phone.trim()))
+    .map((c) => ({
+      type: "call" as const,
+      id: c.id || crypto.randomUUID(),
+      customer_name: c.customer_name?.trim() || "",
+      phone: c.phone?.trim() || "",
+      province: c.province?.trim() || "",
+      trailer_type: c.trailer_type?.trim() || "",
+      price_quote: c.price_quote?.trim() || "",
+      post_call_notes: c.post_call_notes?.trim() || "",
+      result: c.result || "interested",
+      follow_up_date: c.follow_up_date?.trim() || undefined,
+    }));
+
+  const cleanPosts: SalesPostActivity[] = (params.posts || [])
+    .filter((p) => p.platform && p.platform.trim())
+    .map((p) => ({
+      type: "post" as const,
+      id: p.id || crypto.randomUUID(),
+      platform: p.platform.trim(),
+      quantity: Math.max(1, Number(p.quantity) || 1),
+      link_or_desc: p.link_or_desc?.trim() || undefined,
+      inquiries_count:
+        p.inquiries_count != null && !isNaN(Number(p.inquiries_count))
+          ? Number(p.inquiries_count)
+          : undefined,
+      additional_links: p.additional_links?.trim() || undefined,
+    }));
+
+  const cleanOtherTasks: OtherWorkActivity[] = (params.otherTasks || [])
+    .filter((t) => t.task_name && t.task_name.trim())
+    .map((t) => ({
+      type: "other_task" as const,
+      id: t.id || crypto.randomUUID(),
+      task_name: t.task_name.trim(),
+      status: t.status || "completed",
+      customer_name: t.customer_name?.trim() || undefined,
+      result_obstacle: t.result_obstacle?.trim() || undefined,
+      due_date: t.due_date?.trim() || undefined,
+    }));
+
+  const cleanVisits: MarketVisitActivity[] = (params.visits || [])
+    .filter(
+      (v) =>
+        (v.location_customer && v.location_customer.trim()) ||
+        (v.outcome && v.outcome.trim())
+    )
+    .map((v) => ({
+      type: "visit" as const,
+      id: v.id || crypto.randomUUID(),
+      location_customer: v.location_customer?.trim() || "",
+      outcome: v.outcome?.trim() || "",
+      customers_visited_count:
+        v.customers_visited_count != null && !isNaN(Number(v.customers_visited_count))
+          ? Math.max(1, Number(v.customers_visited_count))
+          : 1,
+      next_action: v.next_action?.trim() || undefined,
+      expenses: v.expenses?.trim() || undefined,
+    }));
+
+  const newActivities: ReportDataItem[] = [
+    ...cleanCalls,
+    ...cleanPosts,
+    ...cleanOtherTasks,
+    ...cleanVisits,
+  ];
+
+  const hasSummary =
+    (params.dailySummary && params.dailySummary.trim().length > 0) ||
+    (params.closedOrders != null && params.closedOrders > 0) ||
+    (params.contractValue && params.contractValue.trim().length > 0);
+
+  if (hasSummary) {
+    const summaryItem: DailySummaryActivity = {
+      type: "daily_summary",
+      summary: params.dailySummary?.trim() || "",
+      closed_orders:
+        params.closedOrders != null && !isNaN(Number(params.closedOrders))
+          ? Number(params.closedOrders)
+          : undefined,
+      contract_value: params.contractValue?.trim() || undefined,
+    };
+    newActivities.push(summaryItem);
+  }
+
+  const mergedTasksData: ReportDataItem[] = [...legacyNonWork, ...newActivities];
+
+  if (!existingReport && newActivities.length === 0) {
+    return { success: true };
+  }
+
+  if (existingReport) {
+    const { data, error } = await supabase
+      .from("daily_reports")
+      .update({
+        tasks_data: mergedTasksData,
+        status: params.status || "submitted",
+        updated_at: now,
+      })
+      .eq("id", existingReport.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating work report:", error);
+      return { error: error.message };
+    }
+    return { success: true, report: data, updated_at: now };
+  }
+
+  const newReportId = crypto.randomUUID();
+  const { data, error } = await supabase
+    .from("daily_reports")
+    .insert({
+      id: newReportId,
+      user_id: targetStaffId,
+      report_date: params.date,
+      tasks_data: mergedTasksData,
+      status: params.status || "submitted",
+      created_at: now,
+      updated_at: now,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error inserting work report:", error);
+    return { error: error.message };
+  }
+  return { success: true, report: data, updated_at: now };
+}
+
+export interface CustomerHistoryItem {
+  customer_name: string;
+  phone: string;
+  province?: string;
+  trailer_type?: string;
+}
+
+export async function searchCustomerHistory(query = ""): Promise<CustomerHistoryItem[]> {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return [];
+
+  const supabase = createServiceClient();
+  const { data: reports } = await supabase
+    .from("daily_reports")
+    .select("tasks_data")
+    .order("report_date", { ascending: false })
+    .limit(300);
+
+  const seen = new Map<string, CustomerHistoryItem>();
+  const q = query.trim().toLowerCase();
+
+  for (const r of reports || []) {
+    for (const item of (r.tasks_data || []) as ReportDataItem[]) {
+      if (item.type === "call" && (item.customer_name || item.phone)) {
+        const name = (item.customer_name || "").trim();
+        const phone = (item.phone || "").trim();
+        const key = phone || name.toLowerCase();
+        if (key && !seen.has(key)) {
+          seen.set(key, {
+            customer_name: name,
+            phone,
+            province: item.province?.trim() || "",
+            trailer_type: item.trailer_type?.trim() || "",
+          });
+        }
+      }
+    }
+  }
+
+  const all = Array.from(seen.values());
+  if (!q) return all.slice(0, 20);
+
+  return all
+    .filter(
+      (c) =>
+        c.customer_name.toLowerCase().includes(q) ||
+        c.phone.includes(q) ||
+        (c.province && c.province.toLowerCase().includes(q))
+    )
+    .slice(0, 15);
+}
+
+export interface StaffPeriodExportData {
+  staff: Profile;
+  dailyReports: WorkReportData[];
+}
+
+export async function getWorkReportExportData(params: {
+  staffIds: string[];
+  startDate: string;
+  endDate: string;
+}): Promise<StaffPeriodExportData[] | { error: string }> {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return { error: "Chưa đăng nhập" };
+
+  const allowedStaff: Profile[] = [];
+  for (const sId of params.staffIds) {
+    const acc = await verifyWorkReportStaffAccess(sessionUser, sId);
+    if (acc.allowed && acc.targetStaff) {
+      allowedStaff.push(acc.targetStaff);
+    }
+  }
+
+  if (allowedStaff.length === 0) {
+    return { error: "Không có quyền xuất dữ liệu cho nhân viên đã chọn" };
+  }
+
+  const supabase = createServiceClient();
+  const allowedIds = allowedStaff.map((s) => s.id);
+
+  const { data: reports, error } = await supabase
+    .from("daily_reports")
+    .select("*")
+    .in("user_id", allowedIds)
+    .gte("report_date", params.startDate)
+    .lte("report_date", params.endDate)
+    .order("report_date", { ascending: true });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  const reportsByStaff = new Map<string, typeof reports>();
+  for (const r of reports || []) {
+    const list = reportsByStaff.get(r.user_id) || [];
+    list.push(r);
+    reportsByStaff.set(r.user_id, list);
+  }
+
+  const result: StaffPeriodExportData[] = [];
+  for (const staff of allowedStaff) {
+    const staffReps = reportsByStaff.get(staff.id) || [];
+    const dailyData: WorkReportData[] = staffReps.map((r) => {
+      const { calls, posts, otherTasks, visits, summary } = splitWorkReportItems(
+        r.tasks_data || []
+      );
+      return {
+        reportId: r.id,
+        staffId: staff.id,
+        staffName: staff.full_name,
+        branchName: staff.department?.branch?.name || "Hatico",
+        departmentName: staff.department?.name || "Kinh doanh",
+        date: r.report_date,
+        calls,
+        posts,
+        otherTasks,
+        visits,
+        dailySummary: summary?.summary || "",
+        closedOrders: summary?.closed_orders,
+        contractValue: summary?.contract_value,
+        status: (r.status as "draft" | "submitted") || "submitted",
+        updatedAt: r.updated_at || r.created_at,
+      };
+    });
+
+    result.push({
+      staff,
+      dailyReports: dailyData,
+    });
+  }
+
+  return result;
 }
 
 // 5. Fetch a single report by ID

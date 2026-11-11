@@ -35,8 +35,8 @@ const WeeklyMarketingPanel = dynamic(
   { loading: () => <AdminSummarySkeleton /> },
 );
 
-const CallReportPanel = dynamic(
-  () => import("./call-report-panel").then((m) => m.CallReportPanel),
+const WorkReportPanel = dynamic(
+  () => import("./work-report-panel").then((m) => m.WorkReportPanel),
   { loading: () => <AdminSummarySkeleton /> },
 );
 
@@ -186,9 +186,9 @@ export default function DashboardClient({
       {/* 3. Báo cáo Marketing tuần */}
       {activeView === "weekly" && <WeeklyMarketingPanel profile={profile} />}
 
-      {/* 4. Báo cáo cuộc gọi */}
-      {activeView === "calls" && (
-        <CallReportPanel profile={profile} initialCalls={callReports} />
+      {/* 4. Báo cáo công việc (nâng cấp từ Báo cáo cuộc gọi) */}
+      {(activeView === "calls" || activeView === "work") && (
+        <WorkReportPanel profile={profile} initialCalls={callReports} />
       )}
 
       {/* 5. Báo cáo tổng hợp */}

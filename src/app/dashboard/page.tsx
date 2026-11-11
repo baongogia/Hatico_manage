@@ -50,9 +50,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         ? "attendance"
         : viewStr === "marketing" || viewStr === "posts"
           ? "posts"
-          : viewStr === "calls"
+          : viewStr === "calls" || viewStr === "work_report"
             ? "calls"
-            : viewStr === "work" || viewStr === "weekly"
+            : viewStr === "weekly" || viewStr === "work"
               ? "weekly"
               : viewStr && validMarketingViews.includes(viewStr)
                 ? viewStr
@@ -60,7 +60,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   ? "overview"
                   : isMarketingDepartment(data.profile?.department?.name)
                     ? "posts"
-                    : "weekly";
+                    : "calls";
 
   let initialAdminData = null;
   if (initialTab === "summary" || initialTab === "attendance") {
